@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Colores institucionales CEPRUNSA */
+  --azul-unsa: #1a2855; /* PANTONE 2767 C */
+  --granate-unsa: #7a1a2b; /* PANTONE 7421 C */
+  --plomo-unsa: #888b8d; /* PANTONE Cool Gray 8 C */
+
+  /* Colores complementarios */
+  --azul-claro: #3a4875;
+  --granate-claro: #9a3a4b;
+  --plomo-claro: #a8abad;
+
+  /* Variables del sistema */
+  --primary: var(--azul-unsa);
+  --primary-dark: #0f172a;
+  --primary-light: #334155;
+  --accent: var(--granate-unsa);
+  --radius: 0.5rem; /* Definimos el radio base */
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+html {
+  height: 100%;
+}
+
+/* Estilos para botones */
+@layer components {
+  .btn {
+    @apply rounded-md px-4 py-2 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-[#1A2855] text-white hover:bg-[#0F1A3F] focus:ring-[#1A2855];
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500;
+  }
+
+  .btn-danger {
+    @apply bg-[#7A1A2B] text-white hover:bg-[#5A1420] focus:ring-[#7A1A2B];
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Estilos para el sidebar */
+@media (min-width: 768px) {
+  .md\:sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+}
+
+/* Estilos para el fondo del login */
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Estilos para efectos de desenfoque */
+.backdrop-blur-md {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.backdrop-blur-lg {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Mejora para transiciones suaves */
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+/* Ajustes específicos para pantallas móviles */
+@media (max-width: 640px) {
+  .min-h-screen {
+    min-height: 100vh;
+    height: auto;
+  }
+}
