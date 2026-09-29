@@ -12,6 +12,17 @@ nuevo de Supabase. No son migraciones para una base que ya esté en producción.
 
 Ejecuta cada archivo una sola vez y en ese orden desde `SQL Editor`.
 
+La carpeta `supabase/migrations` contiene únicamente actualizaciones para una
+instancia que ya fue configurada. No ejecutes esas migraciones adicionalmente
+al crear un proyecto nuevo, porque `01_setup.sql` ya incluye el esquema actual.
+
+### Actualizar una instancia existente con áreas
+
+Si el proyecto ya estaba funcionando antes de incorporar áreas, ejecuta una
+sola vez `supabase/migrations/20260928000000_add_areas.sql`. La migración crea la
+tabla, agrega las relaciones opcionales a perfiles e invitaciones y actualiza
+la aceptación de invitaciones para trasladar el área al perfil.
+
 ## 1. Crear y configurar el proyecto
 
 1. Crea un proyecto vacío en Supabase.

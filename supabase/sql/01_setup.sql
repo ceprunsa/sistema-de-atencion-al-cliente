@@ -11,8 +11,14 @@ create table public.roles (
   name text not null unique
 );
 
+create table public.areas (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (btrim(name) <> '')
+);
+
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  area_id uuid references public.areas(id) on delete restrict,
   account_name text,
   first_name text not null check (btrim(first_name) <> ''),
   middle_name text,
@@ -29,6 +35,7 @@ create table public.profiles (
 
 create table public.user_invitations (
   email text primary key,
+  area_id uuid references public.areas(id) on delete set null,
   first_name text not null check (btrim(first_name) <> ''),
   middle_name text,
   paternal_surname text not null check (btrim(paternal_surname) <> ''),
@@ -47,10 +54,13 @@ create table public.user_roles (
 );
 
 create index profiles_email_lower_idx on public.profiles (lower(email));
+create index profiles_area_id_idx on public.profiles (area_id);
+create unique index areas_name_lower_idx on public.areas (lower(btrim(name)));
 create unique index user_invitations_email_lower_idx
   on public.user_invitations (lower(email));
 create index user_invitations_active_email_idx
   on public.user_invitations (lower(email), expires_at);
+create index user_invitations_area_id_idx on public.user_invitations (area_id);
 create index user_roles_role_id_idx on public.user_roles (role_id);
 
 create or replace function public.set_updated_at()
@@ -126,16 +136,17 @@ begin
   end if;
 
   insert into public.profiles (
-    id, account_name, first_name, middle_name, paternal_surname,
+    id, area_id, account_name, first_name, middle_name, paternal_surname,
     maternal_surname, phone, additional_email, email, photo_url, status
   ) values (
-    v_user_id, nullif(p_account_name, ''), v_invitation.first_name,
+    v_user_id, v_invitation.area_id, nullif(p_account_name, ''), v_invitation.first_name,
     v_invitation.middle_name, v_invitation.paternal_surname,
     v_invitation.maternal_surname, v_invitation.phone,
     v_invitation.additional_email, lower(v_email), nullif(p_photo_url, ''),
     'active'
   )
   on conflict (id) do update set
+    area_id = excluded.area_id,
     account_name = coalesce(public.profiles.account_name, nullif(excluded.account_name, '')),
     first_name = excluded.first_name,
     middle_name = excluded.middle_name,
@@ -197,12 +208,14 @@ end;
 $$;
 
 alter table public.profiles enable row level security;
+alter table public.areas enable row level security;
 alter table public.roles enable row level security;
 alter table public.user_roles enable row level security;
 alter table public.user_invitations enable row level security;
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.profiles to authenticated;
+grant select, insert, update, delete on public.areas to authenticated;
 grant select, insert, update, delete on public.roles to authenticated;
 grant select, insert, update, delete on public.user_roles to authenticated;
 grant select, insert, update, delete on public.user_invitations to authenticated;
@@ -217,6 +230,19 @@ using (id = auth.uid() or public.is_admin())
 with check (id = auth.uid() or public.is_admin());
 
 create policy "profiles_delete_admin" on public.profiles
+for delete to authenticated using (public.is_admin());
+
+create policy "areas_select_authenticated" on public.areas
+for select to authenticated using (true);
+
+create policy "areas_insert_admin" on public.areas
+for insert to authenticated with check (public.is_admin());
+
+create policy "areas_update_admin" on public.areas
+for update to authenticated
+using (public.is_admin()) with check (public.is_admin());
+
+create policy "areas_delete_admin" on public.areas
 for delete to authenticated using (public.is_admin());
 
 create policy "roles_select_authenticated" on public.roles

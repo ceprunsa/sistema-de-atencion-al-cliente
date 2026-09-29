@@ -41,6 +41,8 @@ const mapSupabaseUser = (profile: UserProfile): User => {
     maternalSurname: profile.maternalSurname,
     phone: profile.phone,
     additionalEmail: profile.additionalEmail,
+    areaId: profile.areaId,
+    area: profile.area,
     status: profile.status,
     roles: profile.roles,
     createdAt: profile.createdAt,
@@ -116,6 +118,7 @@ export const useUsers = (userId?: string): UsersHookReturn => {
         maternalSurname: userData.maternalSurname,
         phone: userData.phone,
         additionalEmail: userData.additionalEmail,
+        areaId: userData.areaId || null,
         roleKey: userData.role === "admin" ? "ADMIN" : "USER",
       });
       return userData;

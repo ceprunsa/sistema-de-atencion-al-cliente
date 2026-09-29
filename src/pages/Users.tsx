@@ -38,11 +38,14 @@ const UsersTable = ({
       <div className="divide-y divide-gray-200">
         {/* Header */}
         <div className="hidden xl:grid xl:grid-cols-12 bg-gray-50 px-6 py-3 rounded-t-lg">
-          <div className="xl:col-span-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="xl:col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Nombre
           </div>
-          <div className="xl:col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="xl:col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Email
+          </div>
+          <div className="xl:col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Área
           </div>
           <div className="xl:col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Rol
@@ -62,7 +65,7 @@ const UsersTable = ({
           >
             {/* Desktop row */}
             <div className="hidden xl:grid xl:grid-cols-12 xl:items-center xl:px-6 xl:py-4">
-              <div className="xl:col-span-4">
+              <div className="xl:col-span-3">
                 <div className="flex items-center">
                   {user.photoURL ? (
                     <img
@@ -81,8 +84,11 @@ const UsersTable = ({
                   </div>
                 </div>
               </div>
-              <div className="xl:col-span-3 text-sm text-gray-900">
+              <div className="xl:col-span-2 text-sm text-gray-900 truncate pr-3">
                 {user.email}
+              </div>
+              <div className="xl:col-span-2 text-sm text-gray-600">
+                {user.area?.name || "Sin área"}
               </div>
               <div className="xl:col-span-2 relative">
                 {updatingId === user.id ? (
@@ -179,6 +185,7 @@ const UsersTable = ({
                       {user.displayName || user.email}
                     </div>
                     <div className="text-sm text-gray-500">{user.email}</div>
+                    <div className="text-xs text-gray-400">{user.area?.name || "Sin área"}</div>
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -252,10 +259,13 @@ const InvitationsTable = ({
       <div className="divide-y divide-gray-200">
         {/* Header */}
         <div className="hidden xl:grid xl:grid-cols-12 bg-gray-50 px-6 py-3 rounded-t-lg">
-          <div className="xl:col-span-5 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="xl:col-span-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Usuario invitado
           </div>
-          <div className="xl:col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="xl:col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Área
+          </div>
+          <div className="xl:col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Rol asignado
           </div>
           <div className="xl:col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -273,7 +283,7 @@ const InvitationsTable = ({
           >
             {/* Desktop row */}
             <div className="hidden xl:grid xl:grid-cols-12 xl:items-center xl:px-6 xl:py-4">
-              <div className="xl:col-span-5">
+              <div className="xl:col-span-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 border border-amber-200">
                     <Mail size={16} />
@@ -293,7 +303,10 @@ const InvitationsTable = ({
                   </div>
                 </div>
               </div>
-              <div className="xl:col-span-3">
+              <div className="xl:col-span-2 text-sm text-gray-600">
+                {inv.area?.name || "Sin área"}
+              </div>
+              <div className="xl:col-span-2">
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                   {inv.roleName}
                 </span>
@@ -331,6 +344,7 @@ const InvitationsTable = ({
                         .join(" ")}
                     </div>
                     <div className="text-xs text-gray-500">{inv.email}</div>
+                    <div className="text-xs text-gray-400">{inv.area?.name || "Sin área"}</div>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mt-0.5">
                       {inv.roleName}
                     </span>

@@ -7,6 +7,8 @@ import { useAuth } from "../hooks/useAuth";
 import toast from "react-hot-toast";
 import type { User } from "../types";
 import { ChevronDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { areasApi } from "../api/areas";
 
 const UserForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +16,7 @@ const UserForm = () => {
   const { userByIdQuery, saveUser, isSaving } = useUsers(id);
   const { user: currentUser } = useAuth();
   const { data: existingUser, isLoading } = userByIdQuery;
+  const areasQuery = useQuery({ queryKey: ["areas"], queryFn: areasApi.list });
 
   // Cambiar el estado inicial para incluir solo email y rol
   const [formData, setFormData] = useState<Partial<User>>({
@@ -25,6 +28,7 @@ const UserForm = () => {
     maternalSurname: "",
     phone: "",
     additionalEmail: "",
+    areaId: "",
     role: "user" as const, // Especificar el tipo literal
   });
 
@@ -40,6 +44,7 @@ const UserForm = () => {
         maternalSurname: existingUser.maternalSurname || "",
         phone: existingUser.phone || "",
         additionalEmail: existingUser.additionalEmail || "",
+        areaId: existingUser.areaId || "",
         role: existingUser.role || "user",
       });
     }
@@ -149,6 +154,30 @@ const UserForm = () => {
                       Apellido materno
                     </label>
                     <input type="text" name="maternalSurname" id="maternalSurname" value={formData.maternalSurname || ""} onChange={handleChange} required className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" />
+                  </div>
+                  <div className="col-span-6 sm:col-span-4">
+                    <label htmlFor="areaId" className="block text-sm font-medium text-gray-700">
+                      Área <span className="text-gray-400">(opcional)</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="areaId"
+                        name="areaId"
+                        value={formData.areaId || ""}
+                        onChange={handleChange}
+                        disabled={areasQuery.isLoading}
+                        className="appearance-none mt-1 block w-full pl-3 pr-10 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        style={{ backgroundImage: "none" }}
+                      >
+                        <option value="">Sin área</option>
+                        {(areasQuery.data || []).map((area) => (
+                          <option key={area.id} value={area.id}>{area.name}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 pt-1 text-gray-500 opacity-40">
+                        <ChevronDown size={18} />
+                      </div>
+                    </div>
                   </div>
                   <div className="col-span-6 sm:col-span-4">
                     <label

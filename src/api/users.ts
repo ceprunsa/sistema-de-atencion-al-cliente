@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/config";
 import type {
+  Area,
   PaginatedResponse,
   Role,
   UserInvitation,
@@ -8,6 +9,7 @@ import type {
 
 type ProfileRow = {
   id: string;
+  area_id: string | null;
   account_name: string | null;
   first_name: string;
   middle_name: string | null;
@@ -24,10 +26,12 @@ type ProfileRow = {
 
 type ProfileWithRoles = ProfileRow & {
   user_roles?: Array<{ role: Role | null }> | null;
+  area?: Area | null;
 };
 
 type InvitationRow = {
   email: string;
+  area_id: string | null;
   first_name: string;
   middle_name: string | null;
   paternal_surname: string;
@@ -36,6 +40,7 @@ type InvitationRow = {
   additional_email: string | null;
   role_name: string;
   created_at: string;
+  area?: Area | null;
 };
 
 type AuthUserData = {
@@ -67,6 +72,8 @@ const mapProfileRow = (row: ProfileWithRoles): UserProfile => {
     maternalSurname: row.maternal_surname,
     phone: row.phone,
     additionalEmail: row.additional_email,
+    areaId: row.area_id,
+    area: row.area || null,
     photoURL: row.photo_url || "",
     status: row.status,
     roles: roles as Role[],
@@ -82,6 +89,8 @@ const mapInvitationRow = (row: InvitationRow): UserInvitation => ({
   maternalSurname: row.maternal_surname,
   phone: row.phone,
   additionalEmail: row.additional_email,
+  areaId: row.area_id,
+  area: row.area || null,
   roleName: row.role_name,
   status: "INVITED",
   createdAt: row.created_at,
@@ -163,7 +172,7 @@ const acceptInvitation = async (currentUser: AuthUserData) => {
 const getProfileById = async (id: string): Promise<UserProfile | null> => {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*, user_roles(role:roles(id,key,name))")
+    .select("*, area:areas(id,name), user_roles(role:roles(id,key,name))")
     .eq("id", id)
     .maybeSingle();
 
@@ -290,7 +299,7 @@ export const usersApi = {
 
     const { data, error, count } = await supabase
       .from("profiles")
-      .select("*, user_roles(role:roles(id,key,name))", { count: "exact" })
+      .select("*, area:areas(id,name), user_roles(role:roles(id,key,name))", { count: "exact" })
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .range(from, to);
@@ -317,7 +326,7 @@ export const usersApi = {
 
     const { data, error, count } = await supabase
       .from("user_invitations")
-      .select("*", { count: "exact" })
+      .select("*, area:areas(id,name)", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(from, to);
 
@@ -342,6 +351,7 @@ export const usersApi = {
       | "photoURL"
       | "status"
       | "roles"
+      | "area"
       | "createdAt"
       | "createdBy"
     >,
@@ -359,6 +369,7 @@ export const usersApi = {
         maternal_surname: values.maternalSurname.trim(),
         phone: values.phone?.trim() || null,
         additional_email: values.additionalEmail?.trim().toLowerCase() || null,
+        area_id: values.areaId || null,
         role_name: role.name,
       },
       { onConflict: "email" },
@@ -370,6 +381,7 @@ export const usersApi = {
       id: values.email,
       accountName: null,
       ...values,
+      area: null,
       photoURL: "",
       status: "INVITED",
       roles: DEFAULT_ROLES.filter((role) => role.key === normalizedRoleKey),
@@ -390,6 +402,7 @@ export const usersApi = {
       maternalSurname: string;
       phone?: string | null;
       additionalEmail?: string | null;
+      areaId?: string | null;
       roleKey?: string;
     },
   ): Promise<UserProfile> => {
@@ -404,6 +417,7 @@ export const usersApi = {
         maternal_surname: values.maternalSurname.trim(),
         phone: values.phone?.trim() || null,
         additional_email: values.additionalEmail?.trim().toLowerCase() || null,
+        area_id: values.areaId || null,
       })
       .eq("id", id);
 

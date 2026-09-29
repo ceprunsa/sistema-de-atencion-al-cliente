@@ -54,6 +54,8 @@ const mapSupabaseUser = (profile: UserProfile, email?: string): User => {
     maternalSurname: profile.maternalSurname,
     phone: profile.phone,
     additionalEmail: profile.additionalEmail,
+    areaId: profile.areaId,
+    area: profile.area,
     status: profile.status,
     roles: profile.roles,
     createdAt: profile.createdAt,
@@ -371,6 +373,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         maternalSurname: userData.maternalSurname,
         phone: userData.phone || null,
         additionalEmail: userData.additionalEmail || null,
+        areaId: userData.areaId || null,
       }, roleKey);
       return true;
     } catch (error) {

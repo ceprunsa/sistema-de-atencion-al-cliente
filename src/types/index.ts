@@ -5,6 +5,11 @@ export interface Role {
   name: string;
 }
 
+export interface Area {
+  id: string;
+  name: string;
+}
+
 // ─── Usuario registrado (devuelto por GET /users) ─────────────
 export interface UserProfile {
   id: string;
@@ -16,6 +21,8 @@ export interface UserProfile {
   maternalSurname: string;
   phone: string | null;
   additionalEmail: string | null;
+  areaId: string | null;
+  area: Area | null;
   photoURL: string;
   status: string;
   roles: Role[];
@@ -32,6 +39,8 @@ export interface UserInvitation {
   maternalSurname: string;
   phone: string | null;
   additionalEmail: string | null;
+  areaId: string | null;
+  area: Area | null;
   roleName: string;
   status: string; // "INVITED"
   createdAt: string;
@@ -51,6 +60,8 @@ export interface User {
   maternalSurname?: string;
   phone?: string | null;
   additionalEmail?: string | null;
+  areaId?: string | null;
+  area?: Area | null;
   status?: string;
   roles?: Role[];
   createdAt?: string;

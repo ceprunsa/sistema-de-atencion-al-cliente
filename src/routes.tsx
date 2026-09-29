@@ -9,6 +9,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import Profile from "./pages/Profile";
 import Forbidden from "./pages/Forbidden";
+import Areas from "./pages/Areas";
 
 export const router = createBrowserRouter([
   {
@@ -53,6 +54,14 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <UserForm />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "areas",
+        element: (
+          <AdminRoute>
+            <Areas />
           </AdminRoute>
         ),
       },

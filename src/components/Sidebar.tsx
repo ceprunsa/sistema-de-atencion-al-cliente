@@ -3,7 +3,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
-import { Home, Users, X, LogOut, ChevronRight, User } from "lucide-react";
+import { Building2, Home, Users, X, LogOut, ChevronRight, User } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
@@ -142,23 +142,42 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                 </Link>
               </li>
               {isAdmin && (
-                <li>
-                  <Link
-                    to="/users"
-                    className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${
-                      isActive("/users")
-                        ? "bg-[#1A2855]/10 text-[#1A2855] font-medium"
-                        : "text-gray-700"
-                    }`}
-                    onClick={closeSidebar}
-                  >
-                    <Users size={18} className="mr-3" />
-                    <span>Usuarios</span>
-                    {isActive("/users") && (
-                      <ChevronRight size={16} className="ml-auto" />
-                    )}
-                  </Link>
-                </li>
+                <>
+                  <li>
+                    <Link
+                      to="/users"
+                      className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${
+                        location.pathname.startsWith("/users")
+                          ? "bg-[#1A2855]/10 text-[#1A2855] font-medium"
+                          : "text-gray-700"
+                      }`}
+                      onClick={closeSidebar}
+                    >
+                      <Users size={18} className="mr-3" />
+                      <span>Usuarios</span>
+                      {location.pathname.startsWith("/users") && (
+                        <ChevronRight size={16} className="ml-auto" />
+                      )}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/areas"
+                      className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${
+                        isActive("/areas")
+                          ? "bg-[#1A2855]/10 text-[#1A2855] font-medium"
+                          : "text-gray-700"
+                      }`}
+                      onClick={closeSidebar}
+                    >
+                      <Building2 size={18} className="mr-3" />
+                      <span>Áreas</span>
+                      {isActive("/areas") && (
+                        <ChevronRight size={16} className="ml-auto" />
+                      )}
+                    </Link>
+                  </li>
+                </>
               )}
               <li>
                 <Link

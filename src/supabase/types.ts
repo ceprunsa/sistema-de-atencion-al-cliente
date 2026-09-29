@@ -9,9 +9,25 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      areas: {
+        Row: {
+          id: string;
+          name: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
+          area_id: string | null;
           account_name: string | null;
           first_name: string;
           middle_name: string | null;
@@ -27,6 +43,7 @@ export interface Database {
         };
         Insert: {
           id: string;
+          area_id?: string | null;
           account_name?: string | null;
           first_name: string;
           middle_name?: string | null;
@@ -42,6 +59,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          area_id?: string | null;
           account_name?: string | null;
           first_name?: string;
           middle_name?: string | null;
@@ -55,11 +73,19 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "profiles_area_id_fkey";
+            columns: ["area_id"];
+            referencedRelation: "areas";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       user_invitations: {
         Row: {
           email: string;
+          area_id: string | null;
           first_name: string;
           middle_name: string | null;
           paternal_surname: string;
@@ -72,6 +98,7 @@ export interface Database {
         };
         Insert: {
           email: string;
+          area_id?: string | null;
           first_name: string;
           middle_name?: string | null;
           paternal_surname: string;
@@ -84,6 +111,7 @@ export interface Database {
         };
         Update: {
           email?: string;
+          area_id?: string | null;
           first_name?: string;
           middle_name?: string | null;
           paternal_surname?: string;
@@ -94,7 +122,14 @@ export interface Database {
           created_at?: string;
           expires_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "user_invitations_area_id_fkey";
+            columns: ["area_id"];
+            referencedRelation: "areas";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       roles: {
         Row: {
