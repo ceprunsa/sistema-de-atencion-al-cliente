@@ -9,6 +9,8 @@ nuevo de Supabase. No son migraciones para una base que ya esté en producción.
    políticas RLS y el hook que exige una invitación activa.
 2. `supabase/sql/02_bootstrap_admin.sql`: crea la invitación del primer
    administrador.
+3. `supabase/sql/03_customer_service.sql`: instala las tablas, catálogos,
+   funciones RPC y políticas RLS del Registro de Atención al Cliente.
 
 Ejecuta cada archivo una sola vez y en ese orden desde `SQL Editor`.
 
@@ -23,6 +25,19 @@ sola vez `supabase/migrations/20260928000000_add_areas.sql`. La migración crea 
 tabla, agrega las relaciones opcionales a perfiles e invitaciones y actualiza
 la aceptación de invitaciones para trasladar el área al perfil.
 
+### Instalar el módulo de atención en una instancia existente
+
+Después de verificar que la instancia ya tiene la tabla `areas`, ejecuta una
+sola vez `supabase/sql/03_customer_service.sql`. No vuelvas a ejecutar
+`01_setup.sql` sobre una instancia configurada.
+
+### Verificar el módulo de atención
+
+Después de instalarlo, ejecuta `supabase/tests/verify_customer_service.sql` en
+SQL Editor. La consulta es de solo lectura y todas sus filas deben indicar
+`overall_status = OK` y `passed = true`. La matriz funcional completa está en
+`CUSTOMER_SERVICE_VERIFICATION.md`.
+
 ## 1. Crear y configurar el proyecto
 
 1. Crea un proyecto vacío en Supabase.
@@ -31,6 +46,7 @@ la aceptación de invitaciones para trasladar el área al perfil.
 3. Registra las URL del frontend en `Authentication > URL Configuration`,
    incluyendo las URL de desarrollo y producción autorizadas.
 4. Ejecuta completo `supabase/sql/01_setup.sql` en `SQL Editor`.
+5. Ejecuta completo `supabase/sql/03_customer_service.sql`.
 
 ## 2. Crear el primer administrador
 

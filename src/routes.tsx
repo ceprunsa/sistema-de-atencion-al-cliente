@@ -10,6 +10,11 @@ import AdminRoute from "./components/AdminRoute";
 import Profile from "./pages/Profile";
 import Forbidden from "./pages/Forbidden";
 import Areas from "./pages/Areas";
+import ServiceChannels from "./pages/ServiceChannels";
+import NewAttention from "./pages/NewAttention";
+import Attentions from "./pages/Attentions";
+import AttentionDetail from "./pages/AttentionDetail";
+import EditAttention from "./pages/EditAttention";
 
 export const router = createBrowserRouter([
   {
@@ -62,6 +67,46 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <Areas />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "service-channels",
+        element: (
+          <AdminRoute>
+            <ServiceChannels />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "attentions",
+        element: (
+          <ProtectedRoute>
+            <Attentions />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "attentions/new",
+        element: (
+          <ProtectedRoute>
+            <NewAttention />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "attentions/:id",
+        element: (
+          <ProtectedRoute>
+            <AttentionDetail />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "attentions/:id/edit",
+        element: (
+          <AdminRoute>
+            <EditAttention />
           </AdminRoute>
         ),
       },

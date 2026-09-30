@@ -3,7 +3,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
-import { Building2, Home, Users, X, LogOut, ChevronRight, User } from "lucide-react";
+import { Building2, ClipboardPlus, Headphones, Home, Users, X, LogOut, ChevronRight, User } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
@@ -141,6 +141,23 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                   )}
                 </Link>
               </li>
+              <li>
+                <Link
+                  to="/attentions"
+                  className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${
+                    location.pathname.startsWith("/attentions")
+                      ? "bg-[#1A2855]/10 text-[#1A2855] font-medium"
+                      : "text-gray-700"
+                  }`}
+                  onClick={closeSidebar}
+                >
+                  <ClipboardPlus size={18} className="mr-3" />
+                  <span>Atenciones</span>
+                  {location.pathname.startsWith("/attentions") && (
+                    <ChevronRight size={16} className="ml-auto" />
+                  )}
+                </Link>
+              </li>
               {isAdmin && (
                 <>
                   <li>
@@ -173,6 +190,23 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                       <Building2 size={18} className="mr-3" />
                       <span>Áreas</span>
                       {isActive("/areas") && (
+                        <ChevronRight size={16} className="ml-auto" />
+                      )}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/service-channels"
+                      className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${
+                        isActive("/service-channels")
+                          ? "bg-[#1A2855]/10 text-[#1A2855] font-medium"
+                          : "text-gray-700"
+                      }`}
+                      onClick={closeSidebar}
+                    >
+                      <Headphones size={18} className="mr-3" />
+                      <span>Medios de atención</span>
+                      {isActive("/service-channels") && (
                         <ChevronRight size={16} className="ml-auto" />
                       )}
                     </Link>
