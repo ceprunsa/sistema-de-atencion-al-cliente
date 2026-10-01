@@ -38,7 +38,6 @@ type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
   service_channels: Database["public"]["Tables"]["service_channels"]["Row"] | null;
   kinship_types: { name: string } | null;
   attention_topics: Array<{
-    absence_count: number | null;
     consultation_topics: {
       id: string;
       name: string;
@@ -164,7 +163,7 @@ export const attentionsApi = {
     const { data, error } = await supabase
       .from("customer_attentions")
       .select(
-        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(absence_count,consultation_topics(id,name,consultation_types(name))),attention_referrals(*)",
+        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_referrals(*)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -189,6 +188,8 @@ export const attentionsApi = {
       serviceChannelId: row.service_channel_id,
       requesterType: row.requester_type as CustomerAttentionDetail["requesterType"],
       kinshipTypeId: row.kinship_type_id,
+      requesterDetail: row.requester_detail,
+      kinshipDetail: row.kinship_detail,
       conclusion: row.conclusion,
       status: row.status as CustomerAttentionDetail["status"],
       createdByName: row.created_by_name,
@@ -216,7 +217,6 @@ export const attentionsApi = {
           name: item.consultation_topics!.name,
           consultationTypeName:
             item.consultation_topics!.consultation_types?.name || "Sin tipo",
-          absenceCount: item.absence_count,
         })),
       referral: referral
         ? {
@@ -262,7 +262,7 @@ export const attentionsApi = {
       supabase
         .from("consultation_topics")
         .select(
-          "id,consultation_type_id,name,display_order,requires_absence_count,is_active",
+          "id,consultation_type_id,name,display_order,is_active",
         )
         .eq("is_active", true)
         .order("display_order"),
@@ -304,7 +304,6 @@ export const attentionsApi = {
           consultationTypeId: row.consultation_type_id,
           name: row.name,
           displayOrder: row.display_order,
-          requiresAbsenceCount: row.requires_absence_count,
           isActive: row.is_active,
         }),
       ),
@@ -326,7 +325,7 @@ export const attentionsApi = {
     const [channels, types, topics, kinships, areas] = await Promise.all([
       supabase.from("service_channels").select("id,name,detail,is_active,disabled_by_name,disabled_at").order("name"),
       supabase.from("consultation_types").select("id,name,display_order,is_active").order("display_order"),
-      supabase.from("consultation_topics").select("id,consultation_type_id,name,display_order,requires_absence_count,is_active").order("display_order"),
+      supabase.from("consultation_topics").select("id,consultation_type_id,name,display_order,is_active").order("display_order"),
       supabase.from("kinship_types").select("id,name,display_order,is_active").order("display_order"),
       supabase.from("areas").select("id,name").order("name"),
     ]);
@@ -336,7 +335,7 @@ export const attentionsApi = {
     return {
       serviceChannels: (channels.data || []).map((row) => ({ id: row.id, name: row.name, detail: row.detail, isActive: row.is_active, disabledByName: row.disabled_by_name, disabledAt: row.disabled_at })),
       consultationTypes: (types.data || []).map((row) => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
-      consultationTopics: (topics.data || []).map((row) => ({ id: row.id, consultationTypeId: row.consultation_type_id, name: row.name, displayOrder: row.display_order, requiresAbsenceCount: row.requires_absence_count, isActive: row.is_active })),
+      consultationTopics: (topics.data || []).map((row) => ({ id: row.id, consultationTypeId: row.consultation_type_id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
       kinshipTypes: (kinships.data || []).map((row) => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
       areas: (areas.data || []).map((row) => ({ id: row.id, name: row.name })),
     };
@@ -358,12 +357,11 @@ export const attentionsApi = {
       p_service_channel_id: values.serviceChannelId,
       p_requester_type: values.requesterType,
       p_conclusion: values.conclusion.trim(),
-      p_topics: values.topics.map((topic) => ({
-        topic_id: topic.topicId,
-        absence_count: topic.absenceCount,
-      })),
+      p_topics: values.topics.map((topic) => ({ topic_id: topic.topicId })),
       p_kinship_type_id: values.kinshipTypeId || null,
       p_destination_area_id: values.destinationAreaId || null,
+      p_requester_detail: values.requesterDetail || null,
+      p_kinship_detail: values.kinshipDetail || null,
     });
 
     if (error) throw new Error(getErrorMessage(error));
@@ -390,9 +388,11 @@ export const attentionsApi = {
       p_service_channel_id: values.serviceChannelId,
       p_requester_type: values.requesterType,
       p_conclusion: values.conclusion.trim(),
-      p_topics: values.topics.map((topic) => ({ topic_id: topic.topicId, absence_count: topic.absenceCount })),
+      p_topics: values.topics.map((topic) => ({ topic_id: topic.topicId })),
       p_kinship_type_id: values.kinshipTypeId || null,
       p_destination_area_id: values.destinationAreaId || null,
+      p_requester_detail: values.requesterDetail || null,
+      p_kinship_detail: values.kinshipDetail || null,
     });
     if (error) throw new Error(getErrorMessage(error));
   },

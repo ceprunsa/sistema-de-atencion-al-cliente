@@ -143,7 +143,6 @@ export interface Database {
           consultation_type_id: string;
           name: string;
           display_order: number;
-          requires_absence_count: boolean;
           is_active: boolean;
         };
         Insert: {
@@ -151,7 +150,6 @@ export interface Database {
           consultation_type_id: string;
           name: string;
           display_order?: number;
-          requires_absence_count?: boolean;
           is_active?: boolean;
         };
         Update: {
@@ -159,7 +157,6 @@ export interface Database {
           consultation_type_id?: string;
           name?: string;
           display_order?: number;
-          requires_absence_count?: boolean;
           is_active?: boolean;
         };
         Relationships: [
@@ -208,6 +205,8 @@ export interface Database {
           service_channel_id: string;
           requester_type: string;
           kinship_type_id: string | null;
+          requester_detail: string | null;
+          kinship_detail: string | null;
           conclusion: string;
           status: string;
           created_by: string | null;
@@ -231,6 +230,8 @@ export interface Database {
           service_channel_id: string;
           requester_type: string;
           kinship_type_id?: string | null;
+          requester_detail?: string | null;
+          kinship_detail?: string | null;
           conclusion: string;
           status?: string;
           created_by?: string | null;
@@ -254,6 +255,8 @@ export interface Database {
           service_channel_id?: string;
           requester_type?: string;
           kinship_type_id?: string | null;
+          requester_detail?: string | null;
+          kinship_detail?: string | null;
           conclusion?: string;
           status?: string;
           created_by?: string | null;
@@ -293,17 +296,14 @@ export interface Database {
         Row: {
           attention_id: string;
           topic_id: string;
-          absence_count: number | null;
         };
         Insert: {
           attention_id: string;
           topic_id: string;
-          absence_count?: number | null;
         };
         Update: {
           attention_id?: string;
           topic_id?: string;
-          absence_count?: number | null;
         };
         Relationships: [
           {
@@ -549,6 +549,8 @@ export interface Database {
           p_topics: Json;
           p_kinship_type_id?: string | null;
           p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
         };
         Returns: Json;
       };
@@ -566,6 +568,8 @@ export interface Database {
           p_topics: Json;
           p_kinship_type_id?: string | null;
           p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
         };
         Returns: void;
       };

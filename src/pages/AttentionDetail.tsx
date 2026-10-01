@@ -31,6 +31,12 @@ const AttentionDetail = () => {
   }
 
   const clientName = [attention.client.firstName, attention.client.middleName, attention.client.paternalSurname, attention.client.maternalSurname].filter(Boolean).join(" ");
+  const requesterLabel =
+    attention.requesterType === "APPLICANT"
+      ? "Postulante"
+      : attention.requesterType === "RELATIVE"
+        ? `Familiar — ${attention.kinshipName || "Parentesco no disponible"}${attention.kinshipDetail ? `: ${attention.kinshipDetail}` : ""}`
+        : `Otro — ${attention.requesterDetail || "Sin especificar"}`;
   const canConcludeReferral =
     attention.status === "ACTIVE" &&
     !!attention.referral &&
@@ -108,7 +114,7 @@ const AttentionDetail = () => {
             <div><dt className="text-gray-500">DNI</dt><dd className="text-gray-800">{attention.client.dni}</dd></div>
             <div><dt className="text-gray-500">Correo</dt><dd className="text-gray-800">{attention.client.email || "No registrado"}</dd></div>
             <div><dt className="text-gray-500">Teléfono</dt><dd className="text-gray-800">{attention.client.phone || "No registrado"}</dd></div>
-            <div><dt className="text-gray-500">Persona que consulta</dt><dd className="text-gray-800">{attention.requesterType === "APPLICANT" ? "El propio postulante" : `Familiar — ${attention.kinshipName || "Parentesco no disponible"}`}</dd></div>
+            <div><dt className="text-gray-500">Persona que consulta</dt><dd className="text-gray-800">{requesterLabel}</dd></div>
           </dl>
         </section>
 
@@ -129,7 +135,6 @@ const AttentionDetail = () => {
             <div key={topic.id} className="rounded-md border border-gray-200 p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{topic.consultationTypeName}</p>
               <p className="mt-1 text-sm font-medium text-gray-900">{topic.name}</p>
-              {topic.absenceCount !== null && <p className="mt-1 text-sm text-gray-600">Inasistencias: {topic.absenceCount}</p>}
             </div>
           ))}
         </div>

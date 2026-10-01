@@ -84,8 +84,8 @@ checks(check_name, passed, detail) as (
 
   union all
   select 'Funciones RPC instaladas',
-    to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid)') is not null
-      and to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid)') is not null
+    to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)') is not null
+      and to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)') is not null
       and to_regprocedure('public.disable_customer_attention(uuid,text)') is not null
       and to_regprocedure('public.set_service_channel_status(uuid,boolean)') is not null
       and to_regprocedure('public.conclude_attention_referral(uuid,text)') is not null,
@@ -93,16 +93,16 @@ checks(check_name, passed, detail) as (
 
   union all
   select 'RPC sin acceso anónimo',
-    not coalesce(has_function_privilege('anon', to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid)'), 'EXECUTE'), false)
-      and not coalesce(has_function_privilege('anon', to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid)'), 'EXECUTE'), false)
+    not coalesce(has_function_privilege('anon', to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)'), 'EXECUTE'), false)
+      and not coalesce(has_function_privilege('anon', to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)'), 'EXECUTE'), false)
       and not coalesce(has_function_privilege('anon', to_regprocedure('public.disable_customer_attention(uuid,text)'), 'EXECUTE'), false)
       and not coalesce(has_function_privilege('anon', to_regprocedure('public.conclude_attention_referral(uuid,text)'), 'EXECUTE'), false),
     'El rol anon no debe ejecutar RPC del módulo.'
 
   union all
   select 'RPC disponibles para autenticados',
-    coalesce(has_function_privilege('authenticated', to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid)'), 'EXECUTE'), false)
-      and coalesce(has_function_privilege('authenticated', to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid)'), 'EXECUTE'), false)
+    coalesce(has_function_privilege('authenticated', to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)'), 'EXECUTE'), false)
+      and coalesce(has_function_privilege('authenticated', to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)'), 'EXECUTE'), false)
       and coalesce(has_function_privilege('authenticated', to_regprocedure('public.disable_customer_attention(uuid,text)'), 'EXECUTE'), false)
       and coalesce(has_function_privilege('authenticated', to_regprocedure('public.conclude_attention_referral(uuid,text)'), 'EXECUTE'), false),
     'Las RPC validan internamente el rol, estado y área.'
@@ -113,8 +113,8 @@ checks(check_name, passed, detail) as (
       select count(*) = 5 and bool_and(p.prosecdef)
       from pg_proc p
       where p.oid = any(array[
-        to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid)'),
-        to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid)'),
+        to_regprocedure('public.create_customer_attention(jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)'),
+        to_regprocedure('public.update_customer_attention(uuid,jsonb,uuid,text,text,jsonb,uuid,uuid,text,text)'),
         to_regprocedure('public.disable_customer_attention(uuid,text)'),
         to_regprocedure('public.set_service_channel_status(uuid,boolean)'),
         to_regprocedure('public.conclude_attention_referral(uuid,text)')
@@ -154,12 +154,21 @@ checks(check_name, passed, detail) as (
     'Los 29 temas iniciales deben conservar su tipo.'
 
   union all
-  select 'Justificación de faltas configurada',
+  select 'Justificación de faltas como tema regular',
     exists (
       select 1 from public.consultation_topics
-      where name = 'Justificación de faltas' and requires_absence_count
-    ),
-    'El tema debe exigir el número de inasistencias.'
+      where name = 'Justificación de faltas'
+    )
+      and not exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and (
+            (table_name = 'attention_topics' and column_name = 'absence_count')
+            or
+            (table_name = 'consultation_topics' and column_name = 'requires_absence_count')
+          )
+      ),
+    'El tema debe existir sin columnas adicionales de inasistencias.'
 
   union all
   select 'Códigos RAC únicos y válidos',
@@ -188,16 +197,6 @@ checks(check_name, passed, detail) as (
       where c.last_value is null or c.last_value < a.max_number
     ),
     'El contador anual no puede estar detrás del último RAC.'
-
-  union all
-  select 'Datos adicionales de temas válidos',
-    not exists (
-      select 1 from public.attention_topics at
-      join public.consultation_topics ct on ct.id = at.topic_id
-      where (ct.requires_absence_count and (at.absence_count is null or at.absence_count < 1))
-         or (not ct.requires_absence_count and at.absence_count is not null)
-    ),
-    'Solo los temas configurados deben conservar una cantidad positiva.'
 
   union all
   select 'Auditoría de inhabilitaciones',

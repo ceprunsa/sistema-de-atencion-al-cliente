@@ -50,7 +50,6 @@ create table public.consultation_topics (
     references public.consultation_types(id) on delete restrict,
   name text not null check (btrim(name) <> ''),
   display_order integer not null default 0,
-  requires_absence_count boolean not null default false,
   is_active boolean not null default true,
   unique (consultation_type_id, name)
 );
@@ -77,8 +76,14 @@ create table public.customer_attentions (
   service_channel_id uuid not null
     references public.service_channels(id) on delete restrict,
   requester_type text not null
-    check (requester_type in ('APPLICANT', 'RELATIVE')),
+    check (requester_type in ('APPLICANT', 'RELATIVE', 'OTHER')),
   kinship_type_id uuid references public.kinship_types(id) on delete restrict,
+  requester_detail text check (
+    requester_detail is null or length(btrim(requester_detail)) between 1 and 150
+  ),
+  kinship_detail text check (
+    kinship_detail is null or length(btrim(kinship_detail)) between 1 and 150
+  ),
   conclusion text not null check (btrim(conclusion) <> ''),
   status text not null default 'ACTIVE'
     check (status in ('ACTIVE', 'DISABLED')),
@@ -95,9 +100,19 @@ create table public.customer_attentions (
   disabled_at timestamptz,
   unique (rac_year, rac_number),
   check (
-    (requester_type = 'APPLICANT' and kinship_type_id is null)
+    (requester_type = 'APPLICANT'
+      and kinship_type_id is null
+      and requester_detail is null
+      and kinship_detail is null)
     or
-    (requester_type = 'RELATIVE' and kinship_type_id is not null)
+    (requester_type = 'RELATIVE'
+      and kinship_type_id is not null
+      and requester_detail is null)
+    or
+    (requester_type = 'OTHER'
+      and kinship_type_id is null
+      and requester_detail is not null
+      and kinship_detail is null)
   ),
   check (
     (status = 'ACTIVE'
@@ -119,7 +134,6 @@ create table public.attention_topics (
     references public.customer_attentions(id) on delete cascade,
   topic_id uuid not null
     references public.consultation_topics(id) on delete restrict,
-  absence_count integer check (absence_count > 0),
   primary key (attention_id, topic_id)
 );
 
@@ -180,38 +194,66 @@ create trigger customer_attentions_set_updated_at
 before update on public.customer_attentions
 for each row execute function public.set_updated_at();
 
-create or replace function public.validate_attention_topic()
+create or replace function public.validate_attention_requester()
 returns trigger
 language plpgsql
 set search_path = public
 as $$
 declare
-  v_requires_absence_count boolean;
+  v_kinship_name text;
 begin
-  select ct.requires_absence_count
-  into v_requires_absence_count
-  from public.consultation_topics ct
-  where ct.id = new.topic_id;
-
-  if not found then
-    raise exception 'El tema seleccionado no existe.';
+  if new.requester_type = 'APPLICANT' then
+    if new.kinship_type_id is not null
+      or new.requester_detail is not null
+      or new.kinship_detail is not null then
+      raise exception 'El postulante no debe tener datos de parentesco u otro solicitante.';
+    end if;
+    return new;
   end if;
 
-  if v_requires_absence_count and new.absence_count is null then
-    raise exception 'Debes registrar el número de inasistencias.';
+  if new.requester_type = 'OTHER' then
+    if nullif(btrim(new.requester_detail), '') is null then
+      raise exception 'Especifica quién realiza la consulta.';
+    end if;
+    if new.kinship_type_id is not null or new.kinship_detail is not null then
+      raise exception 'El solicitante Otro no debe tener parentesco.';
+    end if;
+    new.requester_detail := btrim(new.requester_detail);
+    return new;
   end if;
 
-  if not v_requires_absence_count and new.absence_count is not null then
-    raise exception 'El número de inasistencias no corresponde a este tema.';
+  if new.requester_type = 'RELATIVE' then
+    select kt.name into v_kinship_name
+    from public.kinship_types kt
+    where kt.id = new.kinship_type_id;
+
+    if not found then
+      raise exception 'Selecciona un parentesco válido.';
+    end if;
+
+    if lower(btrim(v_kinship_name)) = 'otro' then
+      if nullif(btrim(new.kinship_detail), '') is null then
+        raise exception 'Especifica el parentesco del familiar.';
+      end if;
+      new.kinship_detail := btrim(new.kinship_detail);
+    elsif new.kinship_detail is not null then
+      raise exception 'El detalle de parentesco solo corresponde a la opción Otro.';
+    end if;
+
+    if new.requester_detail is not null then
+      raise exception 'El familiar no debe tener detalle de otro solicitante.';
+    end if;
+    return new;
   end if;
 
-  return new;
+  raise exception 'El tipo de solicitante no es válido.';
 end;
 $$;
 
-create trigger attention_topics_validate
-before insert or update on public.attention_topics
-for each row execute function public.validate_attention_topic();
+create trigger customer_attentions_validate_requester
+before insert or update of requester_type, kinship_type_id,
+  requester_detail, kinship_detail on public.customer_attentions
+for each row execute function public.validate_attention_requester();
 
 create or replace function public.prevent_pending_referral_area_delete()
 returns trigger
@@ -249,43 +291,42 @@ values
 insert into public.consultation_topics (
   consultation_type_id,
   name,
-  display_order,
-  requires_absence_count
+  display_order
 )
-select ct.id, seed.name, seed.display_order, seed.requires_absence_count
+select ct.id, seed.name, seed.display_order
 from public.consultation_types ct
 join (
   values
-    ('Información general', 'Procesos', 10, false),
-    ('Información general', 'Requisitos', 20, false),
-    ('Información general', 'Fechas', 30, false),
-    ('Información general', 'Beneficios', 40, false),
-    ('Información general', 'Inversión', 50, false),
-    ('Información general', 'Horarios', 60, false),
-    ('Información general', 'Evaluación previa', 70, false),
-    ('Información general', 'Agregar código modular', 80, false),
-    ('Información general', 'Corrección de datos', 90, false),
-    ('Información general', 'Correo registrado en SisAdmisión', 100, false),
-    ('Información general', 'Correo CEPRUNSA', 110, false),
-    ('Servicios Administrativos', 'Exoneración de pagos / Retiro', 10, false),
-    ('Servicios Administrativos', 'Solicitud de grabaciones', 20, false),
-    ('Servicios Administrativos', 'Justificación de faltas', 30, true),
-    ('Servicios Administrativos', 'Constancia de Prestación de Servicios', 40, false),
-    ('Servicios Administrativos', 'Pago de cuotas', 50, false),
-    ('Servicios Administrativos', 'Cambio de turno', 60, false),
-    ('Servicios Administrativos', 'Cambio de carrera', 70, false),
-    ('Académica', 'No está en grupo de WhatsApp', 10, false),
-    ('Académica', 'Monitores', 20, false),
-    ('Académica', 'Supervisores', 30, false),
-    ('Académica', 'Personal de Enseñanza', 40, false),
-    ('Talento Humano', 'Capacitaciones', 10, false),
-    ('Talento Humano', 'Evaluaciones', 20, false),
-    ('Talento Humano', 'Comunicación en el proceso de convocatoria', 30, false),
-    ('Marketing y Comunicaciones', 'Información', 10, false),
-    ('Marketing y Comunicaciones', 'Mala imagen', 20, false),
-    ('Marketing y Comunicaciones', 'Contenido', 30, false),
-    ('Calidad', 'Sensibilización de los procesos de calidad', 10, false)
-) as seed(type_name, name, display_order, requires_absence_count)
+    ('Información general', 'Procesos', 10),
+    ('Información general', 'Requisitos', 20),
+    ('Información general', 'Fechas', 30),
+    ('Información general', 'Beneficios', 40),
+    ('Información general', 'Inversión', 50),
+    ('Información general', 'Horarios', 60),
+    ('Información general', 'Evaluación previa', 70),
+    ('Información general', 'Agregar código modular', 80),
+    ('Información general', 'Corrección de datos', 90),
+    ('Información general', 'Correo registrado en SisAdmisión', 100),
+    ('Información general', 'Correo CEPRUNSA', 110),
+    ('Servicios Administrativos', 'Exoneración de pagos / Retiro', 10),
+    ('Servicios Administrativos', 'Solicitud de grabaciones', 20),
+    ('Servicios Administrativos', 'Justificación de faltas', 30),
+    ('Servicios Administrativos', 'Constancia de Prestación de Servicios', 40),
+    ('Servicios Administrativos', 'Pago de cuotas', 50),
+    ('Servicios Administrativos', 'Cambio de turno', 60),
+    ('Servicios Administrativos', 'Cambio de carrera', 70),
+    ('Académica', 'No está en grupo de WhatsApp', 10),
+    ('Académica', 'Monitores', 20),
+    ('Académica', 'Supervisores', 30),
+    ('Académica', 'Personal de Enseñanza', 40),
+    ('Talento Humano', 'Capacitaciones', 10),
+    ('Talento Humano', 'Evaluaciones', 20),
+    ('Talento Humano', 'Comunicación en el proceso de convocatoria', 30),
+    ('Marketing y Comunicaciones', 'Información', 10),
+    ('Marketing y Comunicaciones', 'Mala imagen', 20),
+    ('Marketing y Comunicaciones', 'Contenido', 30),
+    ('Calidad', 'Sensibilización de los procesos de calidad', 10)
+) as seed(type_name, name, display_order)
   on seed.type_name = ct.name;
 
 insert into public.kinship_types (name, display_order)
@@ -305,7 +346,9 @@ create or replace function public.create_customer_attention(
   p_conclusion text,
   p_topics jsonb,
   p_kinship_type_id uuid default null,
-  p_destination_area_id uuid default null
+  p_destination_area_id uuid default null,
+  p_requester_detail text default null,
+  p_kinship_detail text default null
 )
 returns jsonb
 language plpgsql
@@ -325,8 +368,6 @@ declare
   v_area_name text;
   v_topic jsonb;
   v_topic_id uuid;
-  v_absence_count integer;
-  v_requires_absence_count boolean;
 begin
   if v_user_id is null then
     raise exception 'No hay una sesión autenticada.';
@@ -348,12 +389,24 @@ begin
     raise exception 'El DNI debe contener exactamente 8 dígitos.';
   end if;
 
-  if p_requester_type not in ('APPLICANT', 'RELATIVE') then
+  if p_requester_type not in ('APPLICANT', 'RELATIVE', 'OTHER') then
     raise exception 'El tipo de solicitante no es válido.';
   end if;
 
-  if p_requester_type = 'APPLICANT' and p_kinship_type_id is not null then
-    raise exception 'El postulante no debe tener parentesco.';
+  if p_requester_type = 'APPLICANT' and (
+    p_kinship_type_id is not null
+    or nullif(btrim(p_requester_detail), '') is not null
+    or nullif(btrim(p_kinship_detail), '') is not null
+  ) then
+    raise exception 'El postulante no debe tener datos adicionales de solicitante.';
+  end if;
+
+  if p_requester_type = 'OTHER' and (
+    p_kinship_type_id is not null
+    or nullif(btrim(p_requester_detail), '') is null
+    or nullif(btrim(p_kinship_detail), '') is not null
+  ) then
+    raise exception 'Especifica correctamente quién realiza la consulta.';
   end if;
 
   if p_requester_type = 'RELATIVE' then
@@ -426,12 +479,14 @@ begin
 
   insert into public.customer_attentions (
     rac_year, rac_number, rac_code, client_id, service_channel_id,
-    requester_type, kinship_type_id, conclusion,
+    requester_type, kinship_type_id, requester_detail, kinship_detail, conclusion,
     created_by, created_by_name, created_by_email
   )
   values (
     v_year, v_number, v_code, v_client_id, p_service_channel_id,
-    p_requester_type, p_kinship_type_id, btrim(p_conclusion),
+    p_requester_type, p_kinship_type_id,
+    nullif(btrim(p_requester_detail), ''), nullif(btrim(p_kinship_detail), ''),
+    btrim(p_conclusion),
     v_user_id, v_actor_name, v_actor_email
   )
   returning id into v_attention_id;
@@ -440,30 +495,20 @@ begin
   loop
     begin
       v_topic_id := (v_topic ->> 'topic_id')::uuid;
-      v_absence_count := nullif(v_topic ->> 'absence_count', '')::integer;
     exception
       when invalid_text_representation then
         raise exception 'La información de uno de los temas no es válida.';
     end;
 
-    select ct.requires_absence_count
-    into v_requires_absence_count
-    from public.consultation_topics ct
-    where ct.id = v_topic_id and ct.is_active;
-
-    if not found then
+    if not exists (
+      select 1 from public.consultation_topics ct
+      where ct.id = v_topic_id and ct.is_active
+    ) then
       raise exception 'Uno de los temas seleccionados no está activo.';
     end if;
 
-    if v_requires_absence_count and v_absence_count is null then
-      raise exception 'Debes registrar el número de inasistencias.';
-    end if;
-
-    insert into public.attention_topics (
-      attention_id, topic_id, absence_count
-    ) values (
-      v_attention_id, v_topic_id, v_absence_count
-    );
+    insert into public.attention_topics (attention_id, topic_id)
+    values (v_attention_id, v_topic_id);
   end loop;
 
   if p_destination_area_id is not null then
@@ -504,7 +549,9 @@ create or replace function public.update_customer_attention(
   p_conclusion text,
   p_topics jsonb,
   p_kinship_type_id uuid default null,
-  p_destination_area_id uuid default null
+  p_destination_area_id uuid default null,
+  p_requester_detail text default null,
+  p_kinship_detail text default null
 )
 returns void
 language plpgsql
@@ -519,8 +566,6 @@ declare
   v_area_name text;
   v_topic jsonb;
   v_topic_id uuid;
-  v_absence_count integer;
-  v_requires_absence_count boolean;
   v_referral_id uuid;
   v_referral_conclusion text;
   v_referral_area_id uuid;
@@ -550,12 +595,16 @@ begin
     raise exception 'La atención no existe o está inhabilitada.';
   end if;
 
-  if p_requester_type not in ('APPLICANT', 'RELATIVE') then
+  if p_requester_type not in ('APPLICANT', 'RELATIVE', 'OTHER') then
     raise exception 'El tipo de solicitante no es válido.';
   end if;
 
-  if p_requester_type = 'APPLICANT' and p_kinship_type_id is not null then
-    raise exception 'El postulante no debe tener parentesco.';
+  if p_requester_type = 'APPLICANT' and (
+    p_kinship_type_id is not null
+    or nullif(btrim(p_requester_detail), '') is not null
+    or nullif(btrim(p_kinship_detail), '') is not null
+  ) then
+    raise exception 'El postulante no debe tener datos adicionales de solicitante.';
   end if;
 
   if p_requester_type = 'RELATIVE' and (
@@ -569,6 +618,14 @@ begin
     )
   ) then
     raise exception 'Selecciona un parentesco válido.';
+  end if;
+
+  if p_requester_type = 'OTHER' and (
+    p_kinship_type_id is not null
+    or nullif(btrim(p_requester_detail), '') is null
+    or nullif(btrim(p_kinship_detail), '') is not null
+  ) then
+    raise exception 'Especifica correctamente quién realiza la consulta.';
   end if;
 
   if p_conclusion is null or btrim(p_conclusion) = '' then
@@ -604,6 +661,8 @@ begin
     service_channel_id = p_service_channel_id,
     requester_type = p_requester_type,
     kinship_type_id = p_kinship_type_id,
+    requester_detail = nullif(btrim(p_requester_detail), ''),
+    kinship_detail = nullif(btrim(p_kinship_detail), ''),
     conclusion = btrim(p_conclusion),
     updated_by = v_user_id,
     updated_by_name = v_actor_name
@@ -620,35 +679,21 @@ begin
   loop
     begin
       v_topic_id := (v_topic ->> 'topic_id')::uuid;
-      v_absence_count := nullif(v_topic ->> 'absence_count', '')::integer;
     exception
       when invalid_text_representation then
         raise exception 'La información de uno de los temas no es válida.';
     end;
 
-    select ct.requires_absence_count
-    into v_requires_absence_count
-    from public.consultation_topics ct
-    where ct.id = v_topic_id
-      and (
-        ct.is_active
-        or ct.id = any(v_existing_topic_ids)
-      );
-
-    if not found then
+    if not exists (
+      select 1 from public.consultation_topics ct
+      where ct.id = v_topic_id
+        and (ct.is_active or ct.id = any(v_existing_topic_ids))
+    ) then
       raise exception 'Uno de los temas seleccionados no está activo.';
     end if;
 
-    if v_requires_absence_count and (v_absence_count is null or v_absence_count < 1) then
-      raise exception 'Debes registrar un número válido de inasistencias.';
-    end if;
-
-    insert into public.attention_topics (attention_id, topic_id, absence_count)
-    values (
-      p_attention_id,
-      v_topic_id,
-      case when v_requires_absence_count then v_absence_count else null end
-    );
+    insert into public.attention_topics (attention_id, topic_id)
+    values (p_attention_id, v_topic_id);
   end loop;
 
   select ar.id, ar.conclusion, ar.destination_area_id
@@ -944,12 +989,12 @@ using (
 
 revoke all on public.rac_counters from anon, authenticated;
 revoke execute on function public.create_customer_attention(
-  jsonb, uuid, text, text, jsonb, uuid, uuid
+  jsonb, uuid, text, text, jsonb, uuid, uuid, text, text
 ) from public, anon;
 revoke execute on function public.disable_customer_attention(uuid, text)
   from public, anon;
 revoke execute on function public.update_customer_attention(
-  uuid, jsonb, uuid, text, text, jsonb, uuid, uuid
+  uuid, jsonb, uuid, text, text, jsonb, uuid, uuid, text, text
 ) from public, anon;
 revoke execute on function public.set_service_channel_status(uuid, boolean)
   from public, anon;
@@ -957,12 +1002,12 @@ revoke execute on function public.conclude_attention_referral(uuid, text)
   from public, anon;
 
 grant execute on function public.create_customer_attention(
-  jsonb, uuid, text, text, jsonb, uuid, uuid
+  jsonb, uuid, text, text, jsonb, uuid, uuid, text, text
 ) to authenticated;
 grant execute on function public.disable_customer_attention(uuid, text)
   to authenticated;
 grant execute on function public.update_customer_attention(
-  uuid, jsonb, uuid, text, text, jsonb, uuid, uuid
+  uuid, jsonb, uuid, text, text, jsonb, uuid, uuid, text, text
 ) to authenticated;
 grant execute on function public.set_service_channel_status(uuid, boolean)
   to authenticated;

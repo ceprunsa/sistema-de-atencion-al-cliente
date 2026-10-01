@@ -7,6 +7,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import SpeechConclusionField from "../components/SpeechConclusionField";
 import { useNewAttention } from "../hooks/useNewAttention";
 import type {
   AttentionRequesterType,
@@ -54,8 +55,9 @@ const NewAttention = () => {
   const [requesterType, setRequesterType] =
     useState<AttentionRequesterType>("APPLICANT");
   const [kinshipTypeId, setKinshipTypeId] = useState("");
+  const [requesterDetail, setRequesterDetail] = useState("");
+  const [kinshipDetail, setKinshipDetail] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
-  const [absenceCounts, setAbsenceCounts] = useState<Record<string, string>>({});
   const [conclusion, setConclusion] = useState("");
   const [destinationAreaId, setDestinationAreaId] = useState("");
   const [createdAttention, setCreatedAttention] =
@@ -84,8 +86,9 @@ const NewAttention = () => {
     setServiceChannelId("");
     setRequesterType("APPLICANT");
     setKinshipTypeId("");
+    setRequesterDetail("");
+    setKinshipDetail("");
     setSelectedTopicIds([]);
-    setAbsenceCounts({});
     setConclusion("");
     setDestinationAreaId("");
     setCreatedAttention(null);
@@ -135,23 +138,24 @@ const NewAttention = () => {
   };
 
   const toggleTopic = (topicId: string) => {
-    setSelectedTopicIds((current) => {
-      if (current.includes(topicId)) {
-        setAbsenceCounts((counts) => {
-          const next = { ...counts };
-          delete next[topicId];
-          return next;
-        });
-        return current.filter((id) => id !== topicId);
-      }
-      return [...current, topicId];
-    });
+    setSelectedTopicIds((current) =>
+      current.includes(topicId)
+        ? current.filter((id) => id !== topicId)
+        : [...current, topicId],
+    );
   };
 
   const handleRequesterChange = (value: AttentionRequesterType) => {
     setRequesterType(value);
-    if (value === "APPLICANT") setKinshipTypeId("");
+    setKinshipTypeId("");
+    setKinshipDetail("");
+    setRequesterDetail("");
   };
+
+  const selectedKinship = catalogs?.kinshipTypes.find(
+    (kinship) => kinship.id === kinshipTypeId,
+  );
+  const isOtherKinship = selectedKinship?.name.trim().toLowerCase() === "otro";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -172,6 +176,14 @@ const NewAttention = () => {
       toast.error("Selecciona el parentesco del familiar.");
       return;
     }
+    if (requesterType === "RELATIVE" && isOtherKinship && !kinshipDetail.trim()) {
+      toast.error("Especifica el parentesco del familiar.");
+      return;
+    }
+    if (requesterType === "OTHER" && !requesterDetail.trim()) {
+      toast.error("Especifica quién realiza la consulta.");
+      return;
+    }
     if (selectedTopicIds.length === 0) {
       toast.error("Selecciona al menos un tema de consulta.");
       return;
@@ -180,16 +192,6 @@ const NewAttention = () => {
     const selectedTopics = (catalogs?.consultationTopics || []).filter((topic) =>
       selectedTopicIds.includes(topic.id),
     );
-    const invalidAbsenceTopic = selectedTopics.find(
-      (topic) =>
-        topic.requiresAbsenceCount &&
-        (!Number.isInteger(Number(absenceCounts[topic.id])) ||
-          Number(absenceCounts[topic.id]) < 1),
-    );
-    if (invalidAbsenceTopic) {
-      toast.error(`Indica una cantidad válida para “${invalidAbsenceTopic.name}”.`);
-      return;
-    }
     if (!conclusion.trim()) {
       toast.error("La conclusión de la atención es obligatoria.");
       return;
@@ -209,13 +211,13 @@ const NewAttention = () => {
         serviceChannelId,
         requesterType,
         kinshipTypeId: requesterType === "RELATIVE" ? kinshipTypeId : null,
-        conclusion: conclusion.trim(),
-        topics: selectedTopics.map((topic) => ({
-          topicId: topic.id,
-          absenceCount: topic.requiresAbsenceCount
-            ? Number(absenceCounts[topic.id])
+        requesterDetail: requesterType === "OTHER" ? requesterDetail.trim() : null,
+        kinshipDetail:
+          requesterType === "RELATIVE" && isOtherKinship
+            ? kinshipDetail.trim()
             : null,
-        })),
+        conclusion: conclusion.trim(),
+        topics: selectedTopics.map((topic) => ({ topicId: topic.id })),
         destinationAreaId: destinationAreaId || null,
       });
       setCreatedAttention(result);
@@ -362,11 +364,15 @@ const NewAttention = () => {
               <div className="mt-2 flex flex-wrap gap-5">
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                   <input type="radio" name="requester" checked={requesterType === "APPLICANT"} onChange={() => handleRequesterChange("APPLICANT")} />
-                  El propio postulante
+                  Postulante
                 </label>
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                   <input type="radio" name="requester" checked={requesterType === "RELATIVE"} onChange={() => handleRequesterChange("RELATIVE")} />
-                  Un familiar
+                  Familiar
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input type="radio" name="requester" checked={requesterType === "OTHER"} onChange={() => handleRequesterChange("OTHER")} />
+                  Otro
                 </label>
               </div>
             </div>
@@ -374,10 +380,22 @@ const NewAttention = () => {
             {requesterType === "RELATIVE" && (
               <div className="mt-4">
                 <label htmlFor="kinship" className="block text-sm font-medium text-gray-700">Parentesco *</label>
-                <select id="kinship" value={kinshipTypeId} onChange={(event) => setKinshipTypeId(event.target.value)} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                <select id="kinship" value={kinshipTypeId} onChange={(event) => { setKinshipTypeId(event.target.value); setKinshipDetail(""); }} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                   <option value="">Selecciona el parentesco</option>
                   {catalogs.kinshipTypes.map((kinship) => <option key={kinship.id} value={kinship.id}>{kinship.name}</option>)}
                 </select>
+                {isOtherKinship && (
+                  <div className="mt-3">
+                    <label htmlFor="kinshipDetail" className="block text-sm font-medium text-gray-700">Especifica el parentesco *</label>
+                    <input id="kinshipDetail" value={kinshipDetail} onChange={(event) => setKinshipDetail(event.target.value)} required maxLength={150} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                  </div>
+                )}
+              </div>
+            )}
+            {requesterType === "OTHER" && (
+              <div className="mt-4">
+                <label htmlFor="requesterDetail" className="block text-sm font-medium text-gray-700">Especifica quién realiza la consulta *</label>
+                <input id="requesterDetail" value={requesterDetail} onChange={(event) => setRequesterDetail(event.target.value)} required maxLength={150} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
               </div>
             )}
           </section>
@@ -398,12 +416,6 @@ const NewAttention = () => {
                             <input type="checkbox" checked={selected} onChange={() => toggleTopic(topic.id)} className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                             <span>{topic.name}</span>
                           </label>
-                          {selected && topic.requiresAbsenceCount && (
-                            <div className="ml-6 mt-2">
-                              <label htmlFor={`absence-${topic.id}`} className="block text-xs font-medium text-gray-600">Cantidad de faltas *</label>
-                              <input id={`absence-${topic.id}`} type="number" min={1} step={1} value={absenceCounts[topic.id] || ""} onChange={(event) => setAbsenceCounts((current) => ({ ...current, [topic.id]: event.target.value }))} className="mt-1 block w-36 rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -417,15 +429,14 @@ const NewAttention = () => {
           <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
             <h2 className="font-semibold text-gray-900 mb-4">4. Resultado y derivación</h2>
             <div>
-              <label htmlFor="conclusion" className="block text-sm font-medium text-gray-700">Conclusión de la atención *</label>
-              <textarea id="conclusion" value={conclusion} onChange={(event) => setConclusion(event.target.value)} required rows={5} maxLength={3000} placeholder="Describe la orientación o solución brindada..." className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-            </div>
-            <div className="mt-4">
               <label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Derivar a un área (opcional)</label>
               <select id="destinationArea" value={destinationAreaId} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 <option value="">Sin derivación</option>
                 {catalogs.areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
               </select>
+            </div>
+            <div className="mt-4">
+              <SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} />
             </div>
           </section>
         </fieldset>

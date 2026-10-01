@@ -3,6 +3,7 @@ import { ArrowLeft, Save } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import SpeechConclusionField from "../components/SpeechConclusionField";
 import { attentionsApi } from "../api/attentions";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
 import type { AttentionRequesterType } from "../types";
@@ -34,8 +35,9 @@ const EditAttention = () => {
   const [serviceChannelId, setServiceChannelId] = useState("");
   const [requesterType, setRequesterType] = useState<AttentionRequesterType>("APPLICANT");
   const [kinshipTypeId, setKinshipTypeId] = useState("");
+  const [requesterDetail, setRequesterDetail] = useState("");
+  const [kinshipDetail, setKinshipDetail] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
-  const [absenceCounts, setAbsenceCounts] = useState<Record<string, string>>({});
   const [conclusion, setConclusion] = useState("");
   const [destinationAreaId, setDestinationAreaId] = useState("");
 
@@ -55,8 +57,9 @@ const EditAttention = () => {
     setServiceChannelId(attention.serviceChannelId);
     setRequesterType(attention.requesterType);
     setKinshipTypeId(attention.kinshipTypeId || "");
+    setRequesterDetail(attention.requesterDetail || "");
+    setKinshipDetail(attention.kinshipDetail || "");
     setSelectedTopicIds(attention.topics.map((topic) => topic.id));
-    setAbsenceCounts(Object.fromEntries(attention.topics.filter((topic) => topic.absenceCount !== null).map((topic) => [topic.id, String(topic.absenceCount)])));
     setConclusion(attention.conclusion);
     setDestinationAreaId(attention.referral?.destinationAreaId || "");
     setInitialized(true);
@@ -81,6 +84,16 @@ const EditAttention = () => {
     );
   };
 
+  const handleRequesterChange = (value: AttentionRequesterType) => {
+    setRequesterType(value);
+    setKinshipTypeId("");
+    setKinshipDetail("");
+    setRequesterDetail("");
+  };
+
+  const selectedKinship = catalogs?.kinshipTypes.find((kinship) => kinship.id === kinshipTypeId);
+  const isOtherKinship = selectedKinship?.name.trim().toLowerCase() === "otro";
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!id || !attention || !catalogs) return;
@@ -96,13 +109,16 @@ const EditAttention = () => {
       toast.error("Selecciona el parentesco del familiar.");
       return;
     }
-
-    const selectedTopics = catalogs.consultationTopics.filter((topic) => selectedTopicIds.includes(topic.id));
-    const invalidTopic = selectedTopics.find((topic) => topic.requiresAbsenceCount && (!Number.isInteger(Number(absenceCounts[topic.id])) || Number(absenceCounts[topic.id]) < 1));
-    if (invalidTopic) {
-      toast.error(`Indica una cantidad válida para “${invalidTopic.name}”.`);
+    if (requesterType === "RELATIVE" && isOtherKinship && !kinshipDetail.trim()) {
+      toast.error("Especifica el parentesco del familiar.");
       return;
     }
+    if (requesterType === "OTHER" && !requesterDetail.trim()) {
+      toast.error("Especifica quién realiza la consulta.");
+      return;
+    }
+
+    const selectedTopics = catalogs.consultationTopics.filter((topic) => selectedTopicIds.includes(topic.id));
 
     try {
       await updateAttention({
@@ -118,8 +134,10 @@ const EditAttention = () => {
         serviceChannelId,
         requesterType,
         kinshipTypeId: requesterType === "RELATIVE" ? kinshipTypeId : null,
+        requesterDetail: requesterType === "OTHER" ? requesterDetail.trim() : null,
+        kinshipDetail: requesterType === "RELATIVE" && isOtherKinship ? kinshipDetail.trim() : null,
         conclusion: conclusion.trim(),
-        topics: selectedTopics.map((topic) => ({ topicId: topic.id, absenceCount: topic.requiresAbsenceCount ? Number(absenceCounts[topic.id]) : null })),
+        topics: selectedTopics.map((topic) => ({ topicId: topic.id })),
         destinationAreaId: destinationAreaId || null,
       });
       toast.success("Atención actualizada correctamente.");
@@ -156,21 +174,22 @@ const EditAttention = () => {
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Datos de la atención</h2>
           <div className="mt-4"><label htmlFor="serviceChannel" className="block text-sm font-medium text-gray-700">Medio *</label><select id="serviceChannel" value={serviceChannelId} onChange={(event) => setServiceChannelId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">Selecciona un medio</option>{catalogs.serviceChannels.map((channel) => <option key={channel.id} value={channel.id} disabled={!channel.isActive && channel.id !== attention.serviceChannelId}>{channel.name} — {channel.detail}{!channel.isActive ? " (inhabilitado)" : ""}</option>)}</select></div>
-          <div className="mt-5"><span className="block text-sm font-medium text-gray-700">Persona que consulta *</span><div className="mt-2 flex flex-wrap gap-5"><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "APPLICANT"} onChange={() => { setRequesterType("APPLICANT"); setKinshipTypeId(""); }} /> Postulante</label><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "RELATIVE"} onChange={() => setRequesterType("RELATIVE")} /> Familiar</label></div></div>
-          {requesterType === "RELATIVE" && <div className="mt-4"><label htmlFor="kinship" className="block text-sm font-medium text-gray-700">Parentesco *</label><select id="kinship" value={kinshipTypeId} onChange={(event) => setKinshipTypeId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">Selecciona el parentesco</option>{catalogs.kinshipTypes.map((kinship) => <option key={kinship.id} value={kinship.id} disabled={!kinship.isActive && kinship.id !== attention.kinshipTypeId}>{kinship.name}{!kinship.isActive ? " (inhabilitado)" : ""}</option>)}</select></div>}
+          <div className="mt-5"><span className="block text-sm font-medium text-gray-700">¿Quién solicita la atención? *</span><div className="mt-2 flex flex-wrap gap-5"><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "APPLICANT"} onChange={() => handleRequesterChange("APPLICANT")} /> Postulante</label><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "RELATIVE"} onChange={() => handleRequesterChange("RELATIVE")} /> Familiar</label><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "OTHER"} onChange={() => handleRequesterChange("OTHER")} /> Otro</label></div></div>
+          {requesterType === "RELATIVE" && <div className="mt-4"><label htmlFor="kinship" className="block text-sm font-medium text-gray-700">Parentesco *</label><select id="kinship" value={kinshipTypeId} onChange={(event) => { setKinshipTypeId(event.target.value); setKinshipDetail(""); }} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">Selecciona el parentesco</option>{catalogs.kinshipTypes.map((kinship) => <option key={kinship.id} value={kinship.id} disabled={!kinship.isActive && kinship.id !== attention.kinshipTypeId}>{kinship.name}{!kinship.isActive ? " (inhabilitado)" : ""}</option>)}</select>{isOtherKinship && <div className="mt-3"><label htmlFor="kinshipDetail" className="block text-sm font-medium text-gray-700">Especifica el parentesco *</label><input id="kinshipDetail" value={kinshipDetail} onChange={(event) => setKinshipDetail(event.target.value)} required maxLength={150} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>}</div>}
+          {requesterType === "OTHER" && <div className="mt-4"><label htmlFor="requesterDetail" className="block text-sm font-medium text-gray-700">Especifica quién realiza la consulta *</label><input id="requesterDetail" value={requesterDetail} onChange={(event) => setRequesterDetail(event.target.value)} required maxLength={150} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>}
         </section>
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Temas consultados *</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {topicGroups.map((group) => <div key={group.id} className="rounded-md border border-gray-200 p-4"><h3 className="font-medium text-gray-800">{group.name}</h3><div className="mt-3 space-y-3">{group.topics.map((topic) => { const selected = selectedTopicIds.includes(topic.id); return <div key={topic.id}><label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" checked={selected} disabled={!topic.isActive && !selected} onChange={() => toggleTopic(topic.id)} className="mt-0.5 rounded" /><span>{topic.name}{!topic.isActive ? " (inhabilitado)" : ""}</span></label>{selected && topic.requiresAbsenceCount && <div className="ml-6 mt-2"><label htmlFor={`absence-${topic.id}`} className="block text-xs font-medium text-gray-600">Cantidad de faltas *</label><input id={`absence-${topic.id}`} type="number" min={1} step={1} value={absenceCounts[topic.id] || ""} onChange={(event) => setAbsenceCounts((current) => ({ ...current, [topic.id]: event.target.value }))} className="mt-1 block w-36 rounded-md border-gray-300 text-sm shadow-sm" /></div>}</div>; })}</div></div>)}
+            {topicGroups.map((group) => <div key={group.id} className="rounded-md border border-gray-200 p-4"><h3 className="font-medium text-gray-800">{group.name}</h3><div className="mt-3 space-y-3">{group.topics.map((topic) => { const selected = selectedTopicIds.includes(topic.id); return <div key={topic.id}><label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" checked={selected} disabled={!topic.isActive && !selected} onChange={() => toggleTopic(topic.id)} className="mt-0.5 rounded" /><span>{topic.name}{!topic.isActive ? " (inhabilitado)" : ""}</span></label></div>; })}</div></div>)}
           </div>
         </section>
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Resultado y derivación</h2>
-          <div className="mt-4"><label htmlFor="conclusion" className="block text-sm font-medium text-gray-700">Conclusión original *</label><textarea id="conclusion" rows={5} maxLength={3000} value={conclusion} onChange={(event) => setConclusion(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
           <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue concluida.</p>}</div>
+          <div className="mt-4"><SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} label="Conclusión de la atención *" /></div>
         </section>
 
         <div className="flex justify-end gap-2"><Link to={`/attentions/${attention.id}`} className="btn btn-secondary">Cancelar</Link><button type="submit" disabled={isUpdating} className="btn btn-primary inline-flex items-center disabled:opacity-60"><Save size={18} className="mr-2" />{isUpdating ? "Guardando..." : "Guardar cambios"}</button></div>

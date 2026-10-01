@@ -16,7 +16,12 @@ Ejecuta cada archivo una sola vez y en ese orden desde `SQL Editor`.
 
 La carpeta `supabase/migrations` contiene únicamente actualizaciones para una
 instancia que ya fue configurada. No ejecutes esas migraciones adicionalmente
-al crear un proyecto nuevo, porque `01_setup.sql` ya incluye el esquema actual.
+al crear un proyecto nuevo, porque `01_setup.sql` y `03_customer_service.sql`
+ya incluyen el esquema actual.
+
+Para una instancia que ya instaló el módulo de atención antes de los ajustes de
+solicitante, ejecuta una vez
+`supabase/migrations/20261001000000_adjust_attention_requester.sql`.
 
 ### Actualizar una instancia existente con áreas
 

@@ -10,7 +10,7 @@ export interface Area {
   name: string;
 }
 
-export type AttentionRequesterType = "APPLICANT" | "RELATIVE";
+export type AttentionRequesterType = "APPLICANT" | "RELATIVE" | "OTHER";
 export type CustomerAttentionStatus = "ACTIVE" | "DISABLED";
 
 export interface Client {
@@ -47,7 +47,6 @@ export interface ConsultationTopic {
   consultationTypeId: string;
   name: string;
   displayOrder: number;
-  requiresAbsenceCount: boolean;
   isActive: boolean;
 }
 
@@ -60,7 +59,6 @@ export interface KinshipType {
 
 export interface AttentionTopicSelection {
   topicId: string;
-  absenceCount: number | null;
 }
 
 export interface AttentionReferral {
@@ -84,6 +82,8 @@ export interface CustomerAttention {
   serviceChannelId: string;
   requesterType: AttentionRequesterType;
   kinshipTypeId: string | null;
+  requesterDetail: string | null;
+  kinshipDetail: string | null;
   conclusion: string;
   status: CustomerAttentionStatus;
   createdByName: string;
@@ -109,6 +109,8 @@ export interface CreateCustomerAttentionInput {
   serviceChannelId: string;
   requesterType: AttentionRequesterType;
   kinshipTypeId?: string | null;
+  requesterDetail?: string | null;
+  kinshipDetail?: string | null;
   conclusion: string;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
@@ -140,6 +142,8 @@ export interface UpdateCustomerAttentionInput {
   serviceChannelId: string;
   requesterType: AttentionRequesterType;
   kinshipTypeId?: string | null;
+  requesterDetail?: string | null;
+  kinshipDetail?: string | null;
   conclusion: string;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
@@ -161,7 +165,6 @@ export interface AttentionTopicDetail {
   id: string;
   name: string;
   consultationTypeName: string;
-  absenceCount: number | null;
 }
 
 export interface CustomerAttentionDetail extends CustomerAttention {

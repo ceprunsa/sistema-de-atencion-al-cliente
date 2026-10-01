@@ -21,7 +21,7 @@ consulta de solo lectura: no crea, actualiza ni elimina registros. El resultado
 debe mostrar `overall_status = OK` y `passed = true` en todas las filas.
 
 La auditoría comprueba tablas, RLS, políticas, permisos RPC, catálogos,
-correlativos, inasistencias, auditoría de inhabilitaciones e historial de
+correlativos, solicitantes, auditoría de inhabilitaciones e historial de
 derivaciones.
 
 ## 3. Usuarios de prueba
@@ -45,7 +45,17 @@ No compartas access tokens ni la clave `service_role`.
 | DNI existente | Crear otra atención con el mismo DNI | Se reutiliza el cliente y se autocompletan sus datos |
 | DNI inválido | Buscar menos de ocho dígitos | React impide continuar y la RPC también lo rechaza |
 | Múltiples temas | Elegir temas de tipos diferentes | Todos aparecen una sola vez en el detalle |
-| Inasistencias | Elegir Justificación de faltas sin cantidad | No permite guardar; con cantidad positiva sí |
+| Solicitante | Elegir Postulante | Guarda sin parentesco ni detalle adicional |
+| Familiar | Elegir un parentesco regular | Guarda el parentesco sin detalle adicional |
+| Familiar: Otro | Elegir Otro sin/con detalle | Exige la especificación y luego la muestra en el detalle |
+| Solicitante: Otro | Dejar vacío/completar quién consulta | Exige la descripción y luego la muestra en el detalle |
+| Cambio de solicitante | Alternar entre las tres opciones | Limpia los campos condicionales que ya no corresponden |
+| Justificación de faltas | Seleccionar el tema | Se guarda sin solicitar una cantidad adicional |
+| Orden visual | Abrir creación y edición | La derivación aparece antes de la conclusión |
+| Dictado con texto previo | Escribir texto e iniciar el micrófono | El reconocimiento se agrega sin reemplazar ni duplicar el texto |
+| Detener dictado | Pulsar detener o salir del formulario | El micrófono deja de escuchar |
+| Dictado no disponible | Denegar permiso o usar navegador incompatible | Informa el problema y permite seguir escribiendo manualmente |
+| Guardado con dictado | Dictar y revisar el texto | No guarda hasta pulsar el botón normal del formulario |
 | Derivación | Derivar desde A hacia Área B | El detalle muestra área, autor, fecha y estado pendiente |
 | Concluir derivación | Abrir con U-B | Puede registrar la conclusión |
 | Área incorrecta | Abrir la misma derivación con U-A o U-S | No aparece el formulario y la RPC rechaza el intento |
