@@ -7,21 +7,26 @@ nuevo de Supabase. No son migraciones para una base que ya esté en producción.
 
 1. `supabase/sql/01_setup.sql`: crea tablas, funciones, índices, roles, permisos,
    políticas RLS y el hook que exige una invitación activa.
-2. `supabase/sql/02_bootstrap_admin.sql`: crea la invitación del primer
-   administrador.
-3. `supabase/sql/03_customer_service.sql`: instala las tablas, catálogos,
+2. `supabase/sql/03_customer_service.sql`: instala las tablas, catálogos,
    funciones RPC y políticas RLS del Registro de Atención al Cliente.
+3. `supabase/sql/04_workstations_surveys_referral_inbox.sql`: agrega mesas,
+   tablet, encuestas, buzón de derivaciones y autorización Realtime.
+4. `supabase/sql/02_bootstrap_admin.sql`: crea la invitación del primer
+   administrador.
 
 Ejecuta cada archivo una sola vez y en ese orden desde `SQL Editor`.
 
 La carpeta `supabase/migrations` contiene únicamente actualizaciones para una
 instancia que ya fue configurada. No ejecutes esas migraciones adicionalmente
-al crear un proyecto nuevo, porque `01_setup.sql` y `03_customer_service.sql`
+al crear un proyecto nuevo, porque los SQL `01`, `03` y `04`
 ya incluyen el esquema actual.
 
 Para una instancia que ya instaló el módulo de atención antes de los ajustes de
 solicitante, ejecuta una vez
 `supabase/migrations/20261001000000_adjust_attention_requester.sql`.
+
+Si además ya tiene esos ajustes, ejecuta una sola vez
+`supabase/migrations/20261002000000_workstations_surveys_referral_inbox.sql`.
 
 ### Actualizar una instancia existente con áreas
 
@@ -38,7 +43,7 @@ sola vez `supabase/sql/03_customer_service.sql`. No vuelvas a ejecutar
 
 ### Verificar el módulo de atención
 
-Después de instalarlo, ejecuta `supabase/tests/verify_customer_service.sql` en
+Después de instalar también el SQL `04`, ejecuta `supabase/tests/verify_customer_service.sql` en
 SQL Editor. La consulta es de solo lectura y todas sus filas deben indicar
 `overall_status = OK` y `passed = true`. La matriz funcional completa está en
 `CUSTOMER_SERVICE_VERIFICATION.md`.
@@ -52,6 +57,7 @@ SQL Editor. La consulta es de solo lectura y todas sus filas deben indicar
    incluyendo las URL de desarrollo y producción autorizadas.
 4. Ejecuta completo `supabase/sql/01_setup.sql` en `SQL Editor`.
 5. Ejecuta completo `supabase/sql/03_customer_service.sql`.
+6. Ejecuta completo `supabase/sql/04_workstations_surveys_referral_inbox.sql`.
 
 ## 2. Crear el primer administrador
 

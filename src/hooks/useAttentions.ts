@@ -1,16 +1,20 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { attentionsApi } from "../api/attentions";
+import { referralsApi } from "../api/referrals";
 import type { PaginationState } from "../types";
 
 export const useAttentions = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [search, setSearchValue] = useState("");
+  const [surveyStatus, setSurveyStatusValue] = useState("");
+  const [referralStatus, setReferralStatusValue] = useState("");
+  const [areaId, setAreaIdValue] = useState("");
 
   const query = useQuery({
-    queryKey: ["attentions", "list", page, limit, search],
-    queryFn: () => attentionsApi.list(page, limit, search),
+    queryKey: ["attentions", "list", page, limit, search, surveyStatus, referralStatus, areaId],
+    queryFn: () => attentionsApi.list(page, limit, search, surveyStatus, referralStatus, areaId),
     placeholderData: keepPreviousData,
   });
 
@@ -27,6 +31,9 @@ export const useAttentions = () => {
     attentions: query.data?.data || [],
     pagination,
     search,
+    surveyStatus,
+    referralStatus,
+    areaId,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,
@@ -40,6 +47,9 @@ export const useAttentions = () => {
       setSearchValue(value);
       setPage(1);
     },
+    setSurveyStatus: (value: string) => { setSurveyStatusValue(value); setPage(1); },
+    setReferralStatus: (value: string) => { setReferralStatusValue(value); setPage(1); },
+    setAreaId: (value: string) => { setAreaIdValue(value); setPage(1); },
   };
 };
 
@@ -56,13 +66,19 @@ export const useAttentionActions = () => {
   const updateMutation = useMutation({ mutationFn: attentionsApi.update, onSuccess: refresh });
   const disableMutation = useMutation({ mutationFn: attentionsApi.disable, onSuccess: refresh });
   const concludeMutation = useMutation({ mutationFn: attentionsApi.concludeReferral, onSuccess: refresh });
+  const disableReferralMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => referralsApi.disable(id, reason),
+    onSuccess: refresh,
+  });
 
   return {
     updateAttention: updateMutation.mutateAsync,
     disableAttention: disableMutation.mutateAsync,
     concludeReferral: concludeMutation.mutateAsync,
+    disableReferral: disableReferralMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
     isDisabling: disableMutation.isPending,
     isConcluding: concludeMutation.isPending,
+    isDisablingReferral: disableReferralMutation.isPending,
   };
 };

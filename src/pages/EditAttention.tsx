@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import SpeechConclusionField from "../components/SpeechConclusionField";
 import { attentionsApi } from "../api/attentions";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
+import { useAuth } from "../hooks/useAuth";
 import type { AttentionRequesterType } from "../types";
 
 type ClientFields = {
@@ -21,6 +22,7 @@ const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo actualizar la atención.";
 
 const EditAttention = () => {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const attentionQuery = useAttention(id);
@@ -152,7 +154,7 @@ const EditAttention = () => {
   if (!attention || !catalogs) return <div className="py-16 text-center text-gray-500">La atención no existe.</div>;
   if (attention.status !== "ACTIVE") return <div className="mx-auto max-w-4xl rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">Una atención inhabilitada no puede editarse.</div>;
 
-  const referralLocked = !!attention.referral?.conclusion;
+  const referralLocked = !!attention.referral && attention.referral.status !== "PENDING";
 
   return (
     <div className="w-full max-w-5xl mx-auto">
@@ -188,7 +190,7 @@ const EditAttention = () => {
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Resultado y derivación</h2>
-          <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue concluida.</p>}</div>
+          <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.filter((area) => area.id !== user?.areaId || area.id === destinationAreaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue cerrada.</p>}</div>
           <div className="mt-4"><SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} label="Conclusión de la atención *" /></div>
         </section>
 

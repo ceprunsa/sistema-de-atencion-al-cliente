@@ -1,11 +1,13 @@
 -- Auditoría de solo lectura del módulo Registro de Atención al Cliente.
--- Ejecutar después de instalar 01_setup.sql y 03_customer_service.sql.
+-- Ejecutar después de instalar 01_setup.sql, 03_customer_service.sql y 04_workstations_surveys_referral_inbox.sql.
 -- Todas las filas deben mostrar passed = true.
 
 with expected_tables(name) as (
   values ('clients'), ('service_channels'), ('consultation_types'),
     ('consultation_topics'), ('kinship_types'), ('rac_counters'),
-    ('customer_attentions'), ('attention_topics'), ('attention_referrals')
+    ('customer_attentions'), ('attention_topics'), ('attention_referrals'),
+    ('workstations'), ('workstation_assignments'), ('tablet_bindings'),
+    ('attention_surveys')
 ),
 expected_policies(name) as (
   values
@@ -18,7 +20,9 @@ expected_policies(name) as (
     ('kinship_types_insert_admin'), ('kinship_types_update_admin'),
     ('customer_attentions_select_by_status'),
     ('attention_topics_select_visible_attention'),
-    ('attention_referrals_select_visible_attention')
+    ('attention_referrals_select_authorized'),
+    ('workstations_select_admin'), ('workstation_assignments_select'),
+    ('tablet_bindings_select'), ('attention_surveys_select')
 ),
 expected_types(name) as (
   values ('Información general'), ('Servicios Administrativos'), ('Académica'),
@@ -60,7 +64,7 @@ checks(check_name, passed, detail) as (
       select 1 from expected_tables e
       where to_regclass('public.' || e.name) is null
     ),
-    'Las nueve tablas del módulo deben existir.'
+    'Las trece tablas del módulo deben existir.'
 
   union all
   select 'RLS habilitado',
@@ -226,6 +230,60 @@ checks(check_name, passed, detail) as (
       group by attention_id having count(*) > 1
     ),
     'Cada atención admite como máximo una derivación.'
+
+  union all
+  select 'Una mesa activa por usuario y un usuario por mesa',
+    not exists (
+      select 1 from public.workstation_assignments where ended_at is null
+      group by user_id having count(*) > 1
+    ) and not exists (
+      select 1 from public.workstation_assignments where ended_at is null
+      group by workstation_id having count(*) > 1
+    ),
+    'No puede haber asignaciones activas duplicadas.'
+
+  union all
+  select 'Una tablet activa por mesa y usuario',
+    not exists (
+      select 1 from public.tablet_bindings where deactivated_at is null
+      group by workstation_id having count(*) > 1
+    ) and not exists (
+      select 1 from public.tablet_bindings where deactivated_at is null
+      group by user_id having count(*) > 1
+    ),
+    'No puede haber vinculaciones activas duplicadas.'
+
+  union all
+  select 'Una encuesta abierta por mesa',
+    not exists (
+      select 1 from public.attention_surveys
+      where status in ('PENDING_DECISION', 'SENT')
+      group by workstation_id having count(*) > 1
+    ),
+    'La mesa se bloquea hasta cerrar su encuesta.'
+
+  union all
+  select 'Encuestas consistentes',
+    not exists (
+      select 1 from public.attention_surveys
+      where (status = 'COMPLETED' and (response is null or completed_at is null))
+         or (status <> 'COMPLETED' and (response is not null or completed_at is not null))
+    ),
+    'Solo una encuesta completada conserva respuesta y fecha de realización.'
+
+  union all
+  select 'Derivaciones a áreas diferentes',
+    not exists (
+      select 1 from public.attention_referrals
+      where source_area_id is not null and source_area_id = destination_area_id
+    ),
+    'Ninguna derivación puede apuntar a su misma área de origen.'
+
+  union all
+  select 'Sesiones de tablet protegidas',
+    to_regprocedure('public.is_active_tablet_session()') is not null
+      and exists (select 1 from pg_policies where schemaname = 'realtime' and tablename = 'messages' and policyname = 'tablet_receive_workstation_broadcasts'),
+    'Debe existir la función de sesión y la autorización del canal privado.'
 )
 select
   case when bool_and(passed) over () then 'OK' else 'REVISAR' end as overall_status,

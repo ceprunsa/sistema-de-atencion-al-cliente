@@ -12,6 +12,52 @@ export interface Area {
 
 export type AttentionRequesterType = "APPLICANT" | "RELATIVE" | "OTHER";
 export type CustomerAttentionStatus = "ACTIVE" | "DISABLED";
+export type SurveyStatus =
+  | "NONE"
+  | "PENDING_DECISION"
+  | "SENT"
+  | "COMPLETED"
+  | "SKIPPED"
+  | "CANCELLED";
+export type SurveyResponse =
+  | "VERY_SATISFIED"
+  | "SATISFIED"
+  | "DISSATISFIED"
+  | "VERY_DISSATISFIED";
+export type ReferralStatus = "NONE" | "PENDING" | "RESOLVED" | "DISABLED" | "CANCELLED";
+
+export interface Workstation {
+  id: string;
+  name: string;
+  isActive: boolean;
+  assignedUserId: string | null;
+  assignedUserName: string | null;
+  tabletBindingId: string | null;
+  tabletLastSeenAt: string | null;
+}
+
+export interface TabletBinding {
+  id: string;
+  workstationId: string;
+  workstationName: string;
+  activatedAt: string;
+}
+
+export interface TabletSurvey {
+  id: string;
+  status: "SENT";
+  sentAt: string;
+}
+
+export interface AttentionSurvey {
+  id: string;
+  status: SurveyStatus;
+  response: SurveyResponse | null;
+  sentAt: string | null;
+  completedAt: string | null;
+  closedReason: string | null;
+  closedAt: string | null;
+}
 
 export interface Client {
   id: string;
@@ -71,6 +117,15 @@ export interface AttentionReferral {
   conclusion: string | null;
   concludedByName: string | null;
   concludedAt: string | null;
+  sourceAreaId: string | null;
+  sourceAreaName: string | null;
+  status: Exclude<ReferralStatus, "NONE">;
+  disabledReason: string | null;
+  disabledByName: string | null;
+  disabledAt: string | null;
+  cancelledReason: string | null;
+  cancelledByName: string | null;
+  cancelledAt: string | null;
 }
 
 export interface CustomerAttention {
@@ -86,6 +141,7 @@ export interface CustomerAttention {
   kinshipDetail: string | null;
   conclusion: string;
   status: CustomerAttentionStatus;
+  createdById: string | null;
   createdByName: string;
   createdByEmail: string;
   createdAt: string;
@@ -159,6 +215,10 @@ export interface AttentionListItem {
   serviceChannelName: string;
   createdByName: string;
   createdAt: string;
+  surveyStatus: SurveyStatus;
+  referralStatus: ReferralStatus;
+  referralAreaId: string | null;
+  referralAreaName: string | null;
 }
 
 export interface AttentionTopicDetail {
@@ -173,6 +233,19 @@ export interface CustomerAttentionDetail extends CustomerAttention {
   kinshipName: string | null;
   topics: AttentionTopicDetail[];
   referral: AttentionReferral | null;
+  survey: AttentionSurvey | null;
+}
+
+export interface ReferralInboxItem {
+  id: string;
+  attentionId: string;
+  racCode: string;
+  clientDni: string;
+  clientName: string;
+  destinationAreaId: string;
+  destinationAreaName: string;
+  referredByName: string;
+  referredAt: string;
 }
 
 // ─── Usuario registrado (devuelto por GET /users) ─────────────

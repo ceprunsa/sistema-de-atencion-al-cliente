@@ -7,6 +7,7 @@ import { Toaster, toast } from "react-hot-toast";
 import { useAuthStore } from "./store/authStore";
 import { useState, useEffect } from "react";
 import appConfig from "./config/appConfig";
+import { surveysApi } from "./api/surveys";
 
 function App() {
   const { user, loading, initialized } = useAuthStore();
@@ -14,6 +15,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [localLoading, setLocalLoading] = useState(true);
+  const [checkingTabletSession, setCheckingTabletSession] = useState(false);
 
   // Efecto para manejar la redirección y el estado de carga local
   useEffect(() => {
@@ -68,6 +70,21 @@ function App() {
     location.search,
   ]);
 
+  useEffect(() => {
+    if (!user || loading) {
+      setCheckingTabletSession(false);
+      return;
+    }
+    let active = true;
+    setCheckingTabletSession(true);
+    void surveysApi.getBinding().then((binding) => {
+      if (!active) return;
+      if (binding) navigate("/tablet", { replace: true });
+      else setCheckingTabletSession(false);
+    }).catch(() => { if (active) setCheckingTabletSession(false); });
+    return () => { active = false; };
+  }, [user, loading, navigate]);
+
   const handleOpenSidebar = () => {
     setSidebarOpen(true);
   };
@@ -94,6 +111,10 @@ function App() {
         <Toaster position="top-right" />
       </div>
     );
+  }
+
+  if (user && checkingTabletSession) {
+    return <div className="flex h-screen items-center justify-center bg-gray-50"><div className="h-12 w-12 animate-spin rounded-full border-4 border-[#1A2855]/10 border-t-[#1A2855]" /><Toaster position="top-right" /></div>;
   }
 
   // Sin usuario — el sistema de rutas maneja la redirección

@@ -17,7 +17,7 @@ dependencias nuevas.
 ## 2. Auditoría de Supabase
 
 Ejecuta `supabase/tests/verify_customer_service.sql` en SQL Editor. Es una
-consulta de solo lectura: no crea, actualiza ni elimina registros. El resultado
+consulta de solo lectura que debe ejecutarse después del SQL `04`: no crea, actualiza ni elimina registros. El resultado
 debe mostrar `overall_status = OK` y `passed = true` en todas las filas.
 
 La auditoría comprueba tablas, RLS, políticas, permisos RPC, catálogos,
@@ -66,6 +66,19 @@ No compartas access tokens ni la clave `service_role`.
 | Medio inhabilitado | Inhabilitar un medio ya usado | No aparece en nuevas atenciones y sigue en el historial |
 | Área histórica | Eliminar un área con derivación concluida | El detalle conserva el nombre histórico del área |
 | Área pendiente | Eliminar un área con derivación pendiente | Supabase rechaza la eliminación |
+| Mesa exclusiva | Asignar dos usuarios a la misma mesa o dos mesas al mismo usuario | Supabase rechaza la segunda asignación |
+| Tablet exclusiva | Vincular una segunda tablet a una mesa activa | Supabase rechaza la vinculación |
+| Recuperación tablet | Recargar `/tablet` con una encuesta enviada | Recupera la encuesta desde la base |
+| Bloqueo por encuesta | Intentar crear otra atención con encuesta abierta | La RPC rechaza el registro |
+| Encuesta completada | Elegir una respuesta | Guarda respuesta y fecha de realización una sola vez |
+| Encuesta omitida | Omitir antes o después de enviarla | Cierra sin respuesta ni fecha de realización |
+| Misma área | Derivar al área propia | La interfaz no la ofrece y Supabase la rechaza |
+| Usuario sin área | Crear una derivación | Puede seleccionar cualquier área activa |
+| Buzón de área | Abrir con usuarios de áreas distintas | Solo el área destino puede resolver |
+| Buzón administrador | Abrir como administrador | Ve todas las pendientes, pero solo resuelve las de su área |
+| Inhabilitar derivación | Administrador registra un motivo | Queda cerrada sin conclusión y conserva auditoría |
+| Cancelación en cascada | Inhabilitar atención con encuesta/derivación pendiente | Ambas pasan a canceladas y liberan la mesa |
+| Concurrencia de encuesta | Responder dos veces simultáneamente | Solo una operación tiene éxito |
 
 ## 5. Prueba de concurrencia RAC
 

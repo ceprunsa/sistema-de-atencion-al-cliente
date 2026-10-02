@@ -333,6 +333,17 @@ export interface Database {
           concluded_by: string | null;
           concluded_by_name: string | null;
           concluded_at: string | null;
+          source_area_id: string | null;
+          source_area_name: string | null;
+          status: string;
+          disabled_reason: string | null;
+          disabled_by: string | null;
+          disabled_by_name: string | null;
+          disabled_at: string | null;
+          cancelled_reason: string | null;
+          cancelled_by: string | null;
+          cancelled_by_name: string | null;
+          cancelled_at: string | null;
         };
         Insert: {
           id?: string;
@@ -346,6 +357,17 @@ export interface Database {
           concluded_by?: string | null;
           concluded_by_name?: string | null;
           concluded_at?: string | null;
+          source_area_id?: string | null;
+          source_area_name?: string | null;
+          status?: string;
+          disabled_reason?: string | null;
+          disabled_by?: string | null;
+          disabled_by_name?: string | null;
+          disabled_at?: string | null;
+          cancelled_reason?: string | null;
+          cancelled_by?: string | null;
+          cancelled_by_name?: string | null;
+          cancelled_at?: string | null;
         };
         Update: {
           id?: string;
@@ -359,6 +381,17 @@ export interface Database {
           concluded_by?: string | null;
           concluded_by_name?: string | null;
           concluded_at?: string | null;
+          source_area_id?: string | null;
+          source_area_name?: string | null;
+          status?: string;
+          disabled_reason?: string | null;
+          disabled_by?: string | null;
+          disabled_by_name?: string | null;
+          disabled_at?: string | null;
+          cancelled_reason?: string | null;
+          cancelled_by?: string | null;
+          cancelled_by_name?: string | null;
+          cancelled_at?: string | null;
         };
         Relationships: [
           {
@@ -371,6 +404,85 @@ export interface Database {
             foreignKeyName: "attention_referrals_destination_area_id_fkey";
             columns: ["destination_area_id"];
             referencedRelation: "areas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      workstations: {
+        Row: { id: string; name: string; is_active: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; name: string; is_active?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; name?: string; is_active?: boolean; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
+      workstation_assignments: {
+        Row: {
+          id: string; workstation_id: string; user_id: string; assigned_by: string | null;
+          assigned_by_name: string; assigned_at: string; ended_by: string | null;
+          ended_by_name: string | null; ended_at: string | null;
+        };
+        Insert: {
+          id?: string; workstation_id: string; user_id: string; assigned_by?: string | null;
+          assigned_by_name: string; assigned_at?: string; ended_by?: string | null;
+          ended_by_name?: string | null; ended_at?: string | null;
+        };
+        Update: {
+          id?: string; workstation_id?: string; user_id?: string; assigned_by?: string | null;
+          assigned_by_name?: string; assigned_at?: string; ended_by?: string | null;
+          ended_by_name?: string | null; ended_at?: string | null;
+        };
+        Relationships: [];
+      };
+      tablet_bindings: {
+        Row: {
+          id: string; workstation_id: string; user_id: string; session_id: string;
+          activated_at: string; last_seen_at: string; deactivated_at: string | null;
+          deactivated_by: string | null; deactivated_by_name: string | null; deactivation_reason: string | null;
+        };
+        Insert: {
+          id?: string; workstation_id: string; user_id: string; session_id: string;
+          activated_at?: string; last_seen_at?: string; deactivated_at?: string | null;
+          deactivated_by?: string | null; deactivated_by_name?: string | null; deactivation_reason?: string | null;
+        };
+        Update: {
+          id?: string; workstation_id?: string; user_id?: string; session_id?: string;
+          activated_at?: string; last_seen_at?: string; deactivated_at?: string | null;
+          deactivated_by?: string | null; deactivated_by_name?: string | null; deactivation_reason?: string | null;
+        };
+        Relationships: [];
+      };
+      attention_surveys: {
+        Row: {
+          id: string; attention_id: string; workstation_id: string; purpose: string; channel: string;
+          status: string; response: string | null; requested_by: string | null; requested_by_name: string;
+          sent_binding_id: string | null; sent_at: string | null; completed_at: string | null;
+          closed_by: string | null; closed_by_name: string | null; closed_at: string | null;
+          closed_reason: string | null; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; attention_id: string; workstation_id: string; purpose?: string; channel?: string;
+          status?: string; response?: string | null; requested_by: string; requested_by_name: string;
+          sent_binding_id?: string | null; sent_at?: string | null; completed_at?: string | null;
+          closed_by?: string | null; closed_by_name?: string | null; closed_at?: string | null;
+          closed_reason?: string | null; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; attention_id?: string; workstation_id?: string; purpose?: string; channel?: string;
+          status?: string; response?: string | null; requested_by?: string; requested_by_name?: string;
+          sent_binding_id?: string | null; sent_at?: string | null; completed_at?: string | null;
+          closed_by?: string | null; closed_by_name?: string | null; closed_at?: string | null;
+          closed_reason?: string | null; created_at?: string; updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "attention_surveys_attention_id_fkey";
+            columns: ["attention_id"];
+            referencedRelation: "customer_attentions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attention_surveys_workstation_id_fkey";
+            columns: ["workstation_id"];
+            referencedRelation: "workstations";
             referencedColumns: ["id"];
           },
         ];
@@ -580,6 +692,41 @@ export interface Database {
       conclude_attention_referral: {
         Args: { p_referral_id: string; p_conclusion: string };
         Returns: void;
+      };
+      assign_workstation: { Args: { p_workstation_id: string; p_user_id: string }; Returns: void };
+      unassign_workstation: { Args: { p_workstation_id: string; p_reason: string }; Returns: void };
+      activate_tablet_binding: { Args: Record<PropertyKey, never>; Returns: Json };
+      get_current_tablet_binding: { Args: Record<PropertyKey, never>; Returns: Json };
+      deactivate_current_tablet: { Args: { p_reason?: string }; Returns: void };
+      force_deactivate_tablet: { Args: { p_workstation_id: string; p_reason: string }; Returns: void };
+      send_attention_survey: { Args: { p_attention_id: string }; Returns: void };
+      get_current_operator_survey: { Args: Record<PropertyKey, never>; Returns: Json };
+      get_attention_survey_status: { Args: { p_attention_id: string }; Returns: string };
+      skip_attention_survey: { Args: { p_attention_id: string }; Returns: void };
+      get_current_tablet_survey: { Args: Record<PropertyKey, never>; Returns: Json };
+      answer_tablet_survey: { Args: { p_survey_id: string; p_response: string }; Returns: void };
+      skip_tablet_survey: { Args: { p_survey_id: string }; Returns: void };
+      disable_attention_referral: { Args: { p_referral_id: string; p_reason: string }; Returns: void };
+      list_referral_inbox: {
+        Args: { p_page?: number; p_limit?: number; p_search?: string; p_area_id?: string | null };
+        Returns: Array<{
+          id: string; attention_id: string; rac_code: string; client_dni: string; client_name: string;
+          destination_area_id: string; destination_area_name: string; referred_by_name: string;
+          referred_at: string; total_count: number;
+        }>;
+      };
+      list_customer_attentions_v2: {
+        Args: {
+          p_page?: number; p_limit?: number; p_search?: string; p_survey_status?: string | null;
+          p_referral_status?: string | null; p_area_id?: string | null;
+        };
+        Returns: Array<{
+          id: string; rac_code: string; attention_status: string; requester_type: string;
+          client_dni: string; client_name: string; service_channel_name: string;
+          created_by_name: string; created_at: string; survey_status: string;
+          referral_status: string; referral_area_id: string | null; referral_area_name: string | null;
+          total_count: number;
+        }>;
       };
     };
     Enums: {

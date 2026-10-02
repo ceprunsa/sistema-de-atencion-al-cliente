@@ -16,23 +16,6 @@ import type {
   UpdateCustomerAttentionInput,
 } from "../types";
 
-type ListRow = {
-  id: string;
-  rac_code: string;
-  status: string;
-  requester_type: string;
-  created_at: string;
-  created_by_name: string;
-  clients: {
-    dni: string;
-    first_name: string;
-    middle_name: string | null;
-    paternal_surname: string;
-    maternal_surname: string;
-  } | null;
-  service_channels: { name: string } | null;
-};
-
 type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
   clients: DatabaseClientRow | null;
   service_channels: Database["public"]["Tables"]["service_channels"]["Row"] | null;
@@ -47,6 +30,10 @@ type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
   attention_referrals:
     | Database["public"]["Tables"]["attention_referrals"]["Row"]
     | Array<Database["public"]["Tables"]["attention_referrals"]["Row"]>
+    | null;
+  attention_surveys:
+    | Database["public"]["Tables"]["attention_surveys"]["Row"]
+    | Array<Database["public"]["Tables"]["attention_surveys"]["Row"]>
     | null;
 };
 
@@ -77,24 +64,9 @@ const mapClient = (row: ClientRow): Client => ({
   updatedAt: row.updated_at,
 });
 
-const getFullName = (person: {
-  first_name: string;
-  middle_name: string | null;
-  paternal_surname: string;
-  maternal_surname: string;
-}) =>
-  [
-    person.first_name,
-    person.middle_name,
-    person.paternal_surname,
-    person.maternal_surname,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
 const getErrorMessage = (error: { code?: string; message?: string }) => {
   if (error.code === "PGRST202") {
-    return "La función de registro no está instalada. Ejecuta 03_customer_service.sql en Supabase.";
+    return "La función requerida no está instalada. Ejecuta los SQL 03 y 04 en Supabase.";
   }
   return error.message || "No se pudo completar la operación.";
 };
@@ -104,53 +76,36 @@ export const attentionsApi = {
     page: number,
     limit: number,
     search: string,
+    surveyStatus?: string,
+    referralStatus?: string,
+    areaId?: string,
   ): Promise<PaginatedResponse<AttentionListItem>> => {
-    const normalizedSearch = search.trim().replace(/[^a-zA-Z0-9-]/g, "");
-    let clientIds: string[] = [];
-
-    if (normalizedSearch && /\d/.test(normalizedSearch)) {
-      const dniSearch = normalizedSearch.replace(/\D/g, "");
-      if (dniSearch) {
-        const { data: clients, error: clientsError } = await supabase
-          .from("clients")
-          .select("id")
-          .ilike("dni", `%${dniSearch}%`);
-        if (clientsError) throw new Error(getErrorMessage(clientsError));
-        clientIds = (clients || []).map((client) => client.id);
-      }
-    }
-
-    let query = supabase
-      .from("customer_attentions")
-      .select(
-        "id,rac_code,status,requester_type,created_at,created_by_name,clients!inner(dni,first_name,middle_name,paternal_surname,maternal_surname),service_channels(name)",
-        { count: "exact" },
-      )
-      .order("created_at", { ascending: false });
-
-    if (normalizedSearch) {
-      const racFilter = `rac_code.ilike.%${normalizedSearch}%`;
-      query = clientIds.length
-        ? query.or(`${racFilter},client_id.in.(${clientIds.join(",")})`)
-        : query.or(racFilter);
-    }
-
-    const from = (page - 1) * limit;
-    const { data, error, count } = await query.range(from, from + limit - 1);
+    const { data, error } = await supabase.rpc("list_customer_attentions_v2", {
+      p_page: page,
+      p_limit: limit,
+      p_search: search.trim(),
+      p_survey_status: surveyStatus || null,
+      p_referral_status: referralStatus || null,
+      p_area_id: areaId || null,
+    });
     if (error) throw new Error(getErrorMessage(error));
-
-    const total = count || 0;
+    const rows = data || [];
+    const total = Number(rows[0]?.total_count || 0);
     return {
-      data: ((data || []) as unknown as ListRow[]).map((row) => ({
+      data: rows.map((row) => ({
         id: row.id,
         racCode: row.rac_code,
-        status: row.status as AttentionListItem["status"],
+        status: row.attention_status as AttentionListItem["status"],
         requesterType: row.requester_type as AttentionListItem["requesterType"],
-        clientDni: row.clients?.dni || "",
-        clientName: row.clients ? getFullName(row.clients) : "Cliente no disponible",
-        serviceChannelName: row.service_channels?.name || "Medio no disponible",
+        clientDni: row.client_dni,
+        clientName: row.client_name,
+        serviceChannelName: row.service_channel_name,
         createdByName: row.created_by_name,
         createdAt: row.created_at,
+        surveyStatus: row.survey_status as AttentionListItem["surveyStatus"],
+        referralStatus: row.referral_status as AttentionListItem["referralStatus"],
+        referralAreaId: row.referral_area_id,
+        referralAreaName: row.referral_area_name,
       })),
       total,
       page,
@@ -163,7 +118,7 @@ export const attentionsApi = {
     const { data, error } = await supabase
       .from("customer_attentions")
       .select(
-        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_referrals(*)",
+        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_referrals(*),attention_surveys(*)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -179,6 +134,9 @@ export const attentionsApi = {
     const referral = Array.isArray(row.attention_referrals)
       ? row.attention_referrals[0]
       : row.attention_referrals;
+    const survey = Array.isArray(row.attention_surveys)
+      ? row.attention_surveys[0]
+      : row.attention_surveys;
     return {
       id: row.id,
       racYear: row.rac_year,
@@ -192,6 +150,7 @@ export const attentionsApi = {
       kinshipDetail: row.kinship_detail,
       conclusion: row.conclusion,
       status: row.status as CustomerAttentionDetail["status"],
+      createdById: row.created_by,
       createdByName: row.created_by_name,
       createdByEmail: row.created_by_email,
       createdAt: row.created_at,
@@ -229,6 +188,26 @@ export const attentionsApi = {
             conclusion: referral.conclusion,
             concludedByName: referral.concluded_by_name,
             concludedAt: referral.concluded_at,
+            sourceAreaId: referral.source_area_id,
+            sourceAreaName: referral.source_area_name,
+            status: referral.status as NonNullable<CustomerAttentionDetail["referral"]>["status"],
+            disabledReason: referral.disabled_reason,
+            disabledByName: referral.disabled_by_name,
+            disabledAt: referral.disabled_at,
+            cancelledReason: referral.cancelled_reason,
+            cancelledByName: referral.cancelled_by_name,
+            cancelledAt: referral.cancelled_at,
+          }
+        : null,
+      survey: survey
+        ? {
+            id: survey.id,
+            status: survey.status as NonNullable<CustomerAttentionDetail["survey"]>["status"],
+            response: survey.response as NonNullable<CustomerAttentionDetail["survey"]>["response"],
+            sentAt: survey.sent_at,
+            completedAt: survey.completed_at,
+            closedReason: survey.closed_reason,
+            closedAt: survey.closed_at,
           }
         : null,
     };

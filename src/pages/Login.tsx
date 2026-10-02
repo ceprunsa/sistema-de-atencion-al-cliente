@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "../components/Logo";
 import toast from "react-hot-toast";
 import backgroundImage from "../assets/ceprunsa_local.jpg";
 import appConfig from "../config/appConfig";
-import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, MonitorSmartphone, RefreshCw, Trash2 } from "lucide-react";
 
 const Login = () => {
   const {
@@ -266,6 +266,13 @@ const Login = () => {
                   </span>
                 )}
               </button>
+              <Link
+                to="/tablet"
+                className="mt-3 flex w-full items-center justify-center rounded-md border border-[#1A2855]/30 bg-white px-4 py-2 text-sm font-medium text-[#1A2855] transition-colors hover:bg-[#1A2855]/5 focus:outline-none focus:ring-2 focus:ring-[#1A2855] focus:ring-offset-2"
+              >
+                <MonitorSmartphone className="mr-2 h-5 w-5" />
+                Iniciar sesión en una tablet
+              </Link>
             </div>
 
             <div className="text-center text-xs text-gray-500 max-w-xs w-full">

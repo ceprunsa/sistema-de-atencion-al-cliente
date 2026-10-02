@@ -1,18 +1,24 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
   ClipboardPlus,
   Search,
+  Send,
+  SkipForward,
   UserCheck,
   UserPlus,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import SpeechConclusionField from "../components/SpeechConclusionField";
+import { surveysApi } from "../api/surveys";
+import { useAuth } from "../hooks/useAuth";
 import { useNewAttention } from "../hooks/useNewAttention";
+import { supabase } from "../supabase/config";
 import type {
   AttentionRequesterType,
   Client,
   CreatedCustomerAttention,
+  SurveyStatus,
 } from "../types";
 
 type ClientForm = {
@@ -37,6 +43,7 @@ const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación.";
 
 const NewAttention = () => {
+  const { user } = useAuth();
   const {
     catalogs,
     isLoadingCatalogs,
@@ -62,6 +69,40 @@ const NewAttention = () => {
   const [destinationAreaId, setDestinationAreaId] = useState("");
   const [createdAttention, setCreatedAttention] =
     useState<CreatedCustomerAttention | null>(null);
+  const [surveyStatus, setSurveyStatus] = useState<SurveyStatus>("NONE");
+  const [isUpdatingSurvey, setIsUpdatingSurvey] = useState(false);
+
+  useEffect(() => {
+    if (!createdAttention || !user) return;
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const refreshStatus = () => {
+      void surveysApi.getStatus(createdAttention.id).then((status) => {
+        if (!cancelled && status) setSurveyStatus(status);
+      }).catch(() => undefined);
+    };
+    void supabase.realtime.setAuth().then(() => {
+      if (cancelled) return;
+      channel = supabase.channel(`operator:${user.id}`, { config: { private: true } })
+        .on("broadcast", { event: "survey_changed" }, (message) => {
+          const payload = message.payload as { status?: SurveyStatus };
+          if (payload.status) setSurveyStatus(payload.status);
+        })
+        .subscribe((status) => { if (status === "SUBSCRIBED") refreshStatus(); });
+    });
+    window.addEventListener("online", refreshStatus);
+    refreshStatus();
+    return () => { cancelled = true; window.removeEventListener("online", refreshStatus); if (channel) void supabase.removeChannel(channel); };
+  }, [createdAttention, user]);
+
+  useEffect(() => {
+    if (!user || createdAttention) return;
+    void surveysApi.getOperatorPending().then((pending) => {
+      if (!pending) return;
+      setCreatedAttention({ id: pending.attentionId, racCode: pending.racCode });
+      setSurveyStatus(pending.status);
+    }).catch(() => undefined);
+  }, [user, createdAttention]);
 
   const topicsByType = useMemo(
     () =>
@@ -92,6 +133,7 @@ const NewAttention = () => {
     setConclusion("");
     setDestinationAreaId("");
     setCreatedAttention(null);
+    setSurveyStatus("NONE");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -221,6 +263,7 @@ const NewAttention = () => {
         destinationAreaId: destinationAreaId || null,
       });
       setCreatedAttention(result);
+      setSurveyStatus("PENDING_DECISION");
       toast.success(`Atención ${result.racCode} registrada correctamente.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -235,12 +278,31 @@ const NewAttention = () => {
   if (isErrorCatalogs || !catalogs) {
     return (
       <div className="max-w-4xl mx-auto rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
-        No se pudieron cargar los catálogos de atención. Verifica que el SQL 03_customer_service.sql esté instalado en Supabase.
+        No se pudieron cargar los catálogos de atención. Verifica que los SQL 03 y 04 estén instalados en Supabase.
       </div>
     );
   }
 
   if (createdAttention) {
+    const handleSurvey = async (action: "send" | "skip") => {
+      setIsUpdatingSurvey(true);
+      try {
+        if (action === "send") {
+          await surveysApi.send(createdAttention.id);
+          setSurveyStatus("SENT");
+          toast.success("Encuesta enviada a la tablet.");
+        } else {
+          await surveysApi.skipByOperator(createdAttention.id);
+          setSurveyStatus("SKIPPED");
+          toast.success("Encuesta omitida. Ya puedes registrar otra atención.");
+        }
+      } catch (error) {
+        toast.error(getErrorMessage(error));
+      } finally {
+        setIsUpdatingSurvey(false);
+      }
+    };
+    const surveyClosed = ["COMPLETED", "SKIPPED", "CANCELLED"].includes(surveyStatus);
     return (
       <div className="w-full max-w-3xl mx-auto">
         <div className="rounded-xl border border-green-200 bg-white p-8 text-center shadow-sm">
@@ -250,10 +312,17 @@ const NewAttention = () => {
           <p className="mt-2 text-3xl font-bold tracking-wide text-[#1A2855]">
             {createdAttention.racCode}
           </p>
-          <button type="button" onClick={resetForm} className="btn btn-primary mt-7 inline-flex items-center">
-            <ClipboardPlus size={18} className="mr-2" />
-            Registrar otra atención
-          </button>
+          {surveyStatus === "PENDING_DECISION" && (
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("send")} className="btn btn-primary inline-flex items-center justify-center"><Send size={18} className="mr-2" />Enviar encuesta a la tablet</button>
+              <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("skip")} className="btn btn-secondary inline-flex items-center justify-center"><SkipForward size={18} className="mr-2" />Omitir encuesta</button>
+            </div>
+          )}
+          {surveyStatus === "SENT" && <div className="mt-7 rounded-lg bg-amber-50 p-4 text-amber-800"><p className="font-medium">Encuesta enviada</p><p className="mt-1 text-sm">Esperando la respuesta en la tablet. No se puede registrar otra atención todavía.</p></div>}
+          {surveyStatus === "COMPLETED" && <div className="mt-7 rounded-lg bg-green-50 p-4 text-green-700">Encuesta completada correctamente.</div>}
+          {surveyStatus === "SKIPPED" && <div className="mt-7 rounded-lg bg-gray-50 p-4 text-gray-700">Encuesta omitida.</div>}
+          {surveyStatus === "CANCELLED" && <div className="mt-7 rounded-lg bg-red-50 p-4 text-red-700">Encuesta cancelada.</div>}
+          {surveyClosed && <button type="button" onClick={resetForm} className="btn btn-primary mt-7 inline-flex items-center"><ClipboardPlus size={18} className="mr-2" />Registrar otra atención</button>}
         </div>
       </div>
     );
@@ -432,7 +501,7 @@ const NewAttention = () => {
               <label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Derivar a un área (opcional)</label>
               <select id="destinationArea" value={destinationAreaId} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 <option value="">Sin derivación</option>
-                {catalogs.areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+                {catalogs.areas.filter((area) => area.id !== user?.areaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
               </select>
             </div>
             <div className="mt-4">

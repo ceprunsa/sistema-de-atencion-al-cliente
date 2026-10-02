@@ -319,7 +319,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ loading: true });
       await withTimeout(
-        supabase.auth.signOut(),
+        supabase.auth.signOut({ scope: "local" }),
         5_000,
         "Supabase no respondió al cerrar sesión.",
       );

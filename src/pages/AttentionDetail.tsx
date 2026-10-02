@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, Ban, CalendarClock, Headphones, MapPin, Pencil, Send, UserRound, X } from "lucide-react";
+import { ArrowLeft, Ban, CalendarClock, Headphones, MapPin, Pencil, Send, ShieldX, Star, UserRound, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../hooks/useAuth";
@@ -10,10 +10,12 @@ const AttentionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { data: attention, isLoading, isError, error } = useAttention(id);
   const { user, isAdmin } = useAuth();
-  const { disableAttention, concludeReferral, isDisabling, isConcluding } = useAttentionActions();
+  const { disableAttention, concludeReferral, disableReferral, isDisabling, isConcluding, isDisablingReferral } = useAttentionActions();
   const [showDisableModal, setShowDisableModal] = useState(false);
   const [disableReason, setDisableReason] = useState("");
   const [referralConclusion, setReferralConclusion] = useState("");
+  const [showReferralDisableModal, setShowReferralDisableModal] = useState(false);
+  const [referralDisableReason, setReferralDisableReason] = useState("");
 
   if (isLoading) return <div className="py-16 text-center text-gray-500">Cargando detalle de la atención...</div>;
 
@@ -40,7 +42,7 @@ const AttentionDetail = () => {
   const canConcludeReferral =
     attention.status === "ACTIVE" &&
     !!attention.referral &&
-    !attention.referral.conclusion &&
+    attention.referral.status === "PENDING" &&
     !!attention.referral.destinationAreaId &&
     user?.areaId === attention.referral.destinationAreaId;
 
@@ -72,6 +74,16 @@ const AttentionDetail = () => {
     } catch (mutationError) {
       toast.error(mutationError instanceof Error ? mutationError.message : "No se pudo concluir la derivación.");
     }
+  };
+
+  const handleDisableReferral = async () => {
+    if (!attention.referral || !referralDisableReason.trim()) return toast.error("El motivo es obligatorio.");
+    try {
+      await disableReferral({ id: attention.referral.id, reason: referralDisableReason });
+      toast.success("Derivación inhabilitada.");
+      setShowReferralDisableModal(false);
+      setReferralDisableReason("");
+    } catch (mutationError) { toast.error(mutationError instanceof Error ? mutationError.message : "No se pudo inhabilitar la derivación."); }
   };
 
   return (
@@ -146,6 +158,11 @@ const AttentionDetail = () => {
       </section>
 
       <section className="mt-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center gap-2"><Star size={20} className="text-[#1A2855]" /><h2 className="font-semibold text-gray-900">Encuesta de satisfacción</h2></div>
+        {!attention.survey ? <p className="text-sm text-gray-500">{isAdmin || attention.createdById === user?.id ? "Sin encuesta (registro anterior a esta funcionalidad)." : "El estado de la encuesta no está disponible para este usuario."}</p> : <div className="text-sm"><span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">{{ PENDING_DECISION: "Pendiente de decidir", SENT: "Enviada: esperando respuesta", COMPLETED: "Completada", SKIPPED: "Omitida", CANCELLED: "Cancelada", NONE: "Sin encuesta" }[attention.survey.status]}</span>{attention.survey.response && <p className="mt-3 text-gray-700">Respuesta: {{ VERY_SATISFIED: "Muy satisfecho", SATISFIED: "Satisfecho", DISSATISFIED: "Insatisfecho", VERY_DISSATISFIED: "Muy insatisfecho" }[attention.survey.response]}</p>}{attention.survey.completedAt && <p className="mt-1 text-xs text-gray-500">Realizada el {formatLocalDate(attention.survey.completedAt)}</p>}{attention.survey.closedReason && <p className="mt-3 text-gray-600">{attention.survey.closedReason}</p>}</div>}
+      </section>
+
+      <section className="mt-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2"><MapPin size={20} className="text-[#1A2855]" /><h2 className="font-semibold text-gray-900">Derivación</h2></div>
         {!attention.referral ? (
           <p className="text-sm text-gray-500">Esta atención no fue derivada a otra área.</p>
@@ -155,13 +172,13 @@ const AttentionDetail = () => {
               <p className="font-medium">Área de destino: {attention.referral.destinationAreaName}</p>
               <p className="mt-1 text-xs text-blue-700">Derivada por {attention.referral.referredByName} el {formatLocalDate(attention.referral.referredAt)}</p>
             </div>
-            {attention.referral.conclusion ? (
+            {attention.referral.status === "RESOLVED" ? (
               <div>
                 <h3 className="font-medium text-gray-800">Conclusión de la derivación</h3>
                 <p className="mt-2 whitespace-pre-wrap leading-6 text-gray-700">{attention.referral.conclusion}</p>
                 <p className="mt-2 text-xs text-gray-500">Registrada por {attention.referral.concludedByName} el {formatLocalDate(attention.referral.concludedAt)}</p>
               </div>
-            ) : (
+            ) : attention.referral.status === "PENDING" ? (
               <div>
                 <div className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-amber-800"><CalendarClock size={18} /> Derivación pendiente de conclusión.</div>
                 {canConcludeReferral && (
@@ -172,8 +189,9 @@ const AttentionDetail = () => {
                     <div className="mt-3 flex justify-end"><button type="submit" disabled={isConcluding} className="btn btn-primary inline-flex items-center disabled:opacity-60"><Send size={17} className="mr-2" />{isConcluding ? "Registrando..." : "Registrar conclusión"}</button></div>
                   </form>
                 )}
+                {isAdmin && <button type="button" onClick={() => setShowReferralDisableModal(true)} className="mt-3 inline-flex items-center text-sm font-medium text-red-600 hover:underline"><ShieldX size={16} className="mr-1" />Inhabilitar derivación</button>}
               </div>
-            )}
+            ) : attention.referral.status === "DISABLED" ? <div className="rounded-md bg-red-50 p-4 text-red-700"><p className="font-medium">Derivación inhabilitada</p><p className="mt-2">{attention.referral.disabledReason}</p><p className="mt-1 text-xs">Por {attention.referral.disabledByName} el {formatLocalDate(attention.referral.disabledAt)}</p></div> : <div className="rounded-md bg-gray-100 p-4 text-gray-700"><p className="font-medium">Derivación cancelada</p><p className="mt-2">{attention.referral.cancelledReason}</p><p className="mt-1 text-xs">Por {attention.referral.cancelledByName} el {formatLocalDate(attention.referral.cancelledAt)}</p></div>}
           </div>
         )}
       </section>
@@ -186,6 +204,9 @@ const AttentionDetail = () => {
             <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setShowDisableModal(false)} disabled={isDisabling} className="btn btn-secondary">Cancelar</button><button type="button" onClick={handleDisable} disabled={isDisabling} className="inline-flex items-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">{isDisabling ? "Inhabilitando..." : "Confirmar inhabilitación"}</button></div>
           </div>
         </div>
+      )}
+      {showReferralDisableModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/60 px-4"><div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"><div className="flex justify-between"><div><h2 className="text-xl font-bold">Inhabilitar derivación</h2><p className="mt-1 text-sm text-gray-500">La atención seguirá activa, pero la derivación quedará cerrada.</p></div><button onClick={() => setShowReferralDisableModal(false)}><X size={20} /></button></div><label className="mt-5 block text-sm font-medium">Motivo *</label><textarea rows={4} maxLength={1000} value={referralDisableReason} onChange={(e) => setReferralDisableReason(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300" /><div className="mt-5 flex justify-end gap-2"><button onClick={() => setShowReferralDisableModal(false)} className="btn btn-secondary">Cancelar</button><button disabled={isDisablingReferral} onClick={handleDisableReferral} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{isDisablingReferral ? "Inhabilitando..." : "Confirmar"}</button></div></div></div>
       )}
     </div>
   );

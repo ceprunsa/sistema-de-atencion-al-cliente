@@ -1,54 +1,42 @@
-# React + TypeScript + Vite
+# Sistema de Atención al Cliente CEPRUNSA
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación Vite + React + TypeScript conectada a Supabase. Incluye usuarios e invitaciones, áreas, medios de atención, registro RAC, derivaciones por área, mesas de trabajo y encuestas presenciales mediante tablet.
 
-Currently, two official plugins are available:
+## Desarrollo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Variables requeridas en `.env`:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+```env
+VITE_SUPABASE_URL=https://TU_PROYECTO.supabase.co
+VITE_SUPABASE_ANON_KEY=TU_CLAVE_PUBLICA
 ```
+
+## Verificación
+
+```bash
+npm run verify
+```
+
+## Base nueva desde cero
+
+Ejecuta en SQL Editor, en este orden:
+
+1. `supabase/sql/01_setup.sql`
+2. `supabase/sql/03_customer_service.sql`
+3. `supabase/sql/04_workstations_surveys_referral_inbox.sql`
+4. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
+
+Después configura el hook de invitaciones, OAuth y Realtime siguiendo `SUPABASE_WORKSTATIONS_SETUP.md`.
+
+## Base existente
+
+Si la base ya tiene instalados los módulos anteriores, ejecuta una sola vez:
+
+`supabase/migrations/20261002000000_workstations_surveys_referral_inbox.sql`
+
+No ejecutes simultáneamente el archivo de migración y el SQL `04`: contienen la misma ampliación.

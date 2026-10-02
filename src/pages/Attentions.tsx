@@ -4,8 +4,16 @@ import { Link } from "react-router-dom";
 import Pagination from "../components/Pagination";
 import { useAttentions } from "../hooks/useAttentions";
 import { formatLocalDate } from "../utils/dateUtils";
+import { useAuth } from "../hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { areasApi } from "../api/areas";
+
+const surveyLabels: Record<string, string> = { NONE: "Sin encuesta", PENDING_DECISION: "Encuesta por decidir", SENT: "Encuesta enviada", COMPLETED: "Encuesta completada", SKIPPED: "Encuesta omitida", CANCELLED: "Encuesta cancelada" };
+const referralLabels: Record<string, string> = { NONE: "Sin derivación", PENDING: "Derivación pendiente", RESOLVED: "Derivación resuelta", DISABLED: "Derivación inhabilitada", CANCELLED: "Derivación cancelada" };
 
 const Attentions = () => {
+  const { isAdmin } = useAuth();
+  const areas = useQuery({ queryKey: ["areas", "attention-filter"], queryFn: areasApi.list, enabled: isAdmin });
   const {
     attentions,
     pagination,
@@ -17,6 +25,12 @@ const Attentions = () => {
     setPage,
     setLimit,
     setSearch,
+    surveyStatus,
+    referralStatus,
+    areaId,
+    setSurveyStatus,
+    setReferralStatus,
+    setAreaId,
   } = useAttentions();
   const [searchInput, setSearchInput] = useState(search);
 
@@ -49,7 +63,7 @@ const Attentions = () => {
         <label htmlFor="attentionSearch" className="block text-sm font-medium text-gray-700">
           Buscar atención
         </label>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-1 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_190px_190px_190px_auto]">
           <div className="relative flex-1">
             <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -66,6 +80,9 @@ const Attentions = () => {
               </button>
             )}
           </div>
+          <select value={surveyStatus} onChange={(event) => setSurveyStatus(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las encuestas</option>{Object.entries(surveyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <select value={referralStatus} onChange={(event) => setReferralStatus(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las derivaciones</option>{Object.entries(referralLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          {isAdmin ? <select value={areaId} onChange={(event) => setAreaId(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las áreas</option>{(areas.data || []).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select> : <div className="hidden lg:block" />}
           <button type="submit" className="btn btn-secondary inline-flex items-center justify-center">
             <Search size={17} className="mr-2" />
             Buscar
@@ -97,7 +114,7 @@ const Attentions = () => {
               <div className="col-span-3">Cliente</div>
               <div className="col-span-2">Medio</div>
               <div className="col-span-2">Registro</div>
-              <div className="col-span-2">Estado</div>
+              <div className="col-span-2">Estados</div>
               <div className="col-span-1 text-right">Acción</div>
             </div>
             {attentions.map((attention) => (
@@ -120,6 +137,8 @@ const Attentions = () => {
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${attention.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                     {attention.status === "ACTIVE" ? "Activa" : "Inhabilitada"}
                   </span>
+                  <p className="mt-1 text-xs font-medium text-blue-700">{surveyLabels[attention.surveyStatus]}</p>
+                  <p className={`mt-0.5 text-xs font-medium ${attention.referralStatus === "PENDING" ? "text-amber-700" : "text-gray-500"}`}>{referralLabels[attention.referralStatus]}{attention.referralAreaName ? ` · ${attention.referralAreaName}` : ""}</p>
                 </div>
                 <div className="mt-3 flex justify-end lg:col-span-1 lg:mt-0">
                   <Link to={`/attentions/${attention.id}`} title="Ver detalle" className="rounded-md p-2 text-blue-600 hover:bg-blue-50">

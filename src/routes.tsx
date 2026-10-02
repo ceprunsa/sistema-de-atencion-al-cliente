@@ -15,8 +15,15 @@ import NewAttention from "./pages/NewAttention";
 import Attentions from "./pages/Attentions";
 import AttentionDetail from "./pages/AttentionDetail";
 import EditAttention from "./pages/EditAttention";
+import Workstations from "./pages/Workstations";
+import ReferralInbox from "./pages/ReferralInbox";
+import Tablet from "./pages/Tablet";
 
 export const router = createBrowserRouter([
+  {
+    path: "/tablet",
+    element: <Tablet />,
+  },
   {
     path: "/",
     element: <App />,
@@ -107,6 +114,22 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <EditAttention />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "referrals",
+        element: (
+          <ProtectedRoute>
+            <ReferralInbox />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "workstations",
+        element: (
+          <AdminRoute>
+            <Workstations />
           </AdminRoute>
         ),
       },
