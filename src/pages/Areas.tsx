@@ -1,55 +1,61 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Building2, Pencil, Plus, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
-import { areasApi } from "../api/areas";
 import ConfirmModal from "../components/ConfirmModal";
+import { useAreas } from "../hooks/useAreas";
 import type { Area } from "../types";
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación.";
 
 const Areas = () => {
-  const queryClient = useQueryClient();
+  const {
+    areas,
+    isLoading,
+    isError,
+    createArea,
+    updateArea,
+    deleteArea,
+    isSaving,
+    isDeleting,
+  } = useAreas();
   const [name, setName] = useState("");
   const [editingArea, setEditingArea] = useState<Area | null>(null);
   const [areaToDelete, setAreaToDelete] = useState<Area | null>(null);
 
-  const areasQuery = useQuery({ queryKey: ["areas"], queryFn: areasApi.list });
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      toast.error("El nombre del área es obligatorio.");
+      return;
+    }
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const normalizedName = name.trim();
-      if (!normalizedName) throw new Error("El nombre del área es obligatorio.");
-      return editingArea
-        ? areasApi.update(editingArea.id, normalizedName)
-        : areasApi.create(normalizedName);
-    },
-    onSuccess: () => {
-      toast.success(editingArea ? "Área actualizada." : "Área creada.");
+    try {
+      if (editingArea) {
+        await updateArea({ id: editingArea.id, name: normalizedName });
+        toast.success("Área actualizada.");
+      } else {
+        await createArea(normalizedName);
+        toast.success("Área creada.");
+      }
       setName("");
       setEditingArea(null);
-      queryClient.invalidateQueries({ queryKey: ["areas"] });
-    },
-    onError: (error) => toast.error(getErrorMessage(error)),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => areasApi.remove(id),
-    onSuccess: () => {
-      toast.success("Área eliminada.");
-      setAreaToDelete(null);
-      queryClient.invalidateQueries({ queryKey: ["areas"] });
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error(getErrorMessage(error));
-      setAreaToDelete(null);
-    },
-  });
+    }
+  };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    saveMutation.mutate();
+  const confirmDelete = async () => {
+    if (!areaToDelete) return;
+    try {
+      await deleteArea(areaToDelete.id);
+      toast.success("Área eliminada.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setAreaToDelete(null);
+    }
   };
 
   const startEditing = (area: Area) => {
@@ -92,24 +98,24 @@ const Areas = () => {
                 <X size={17} className="mr-1" /> Cancelar
               </button>
             )}
-            <button type="submit" disabled={saveMutation.isPending} className="btn btn-primary inline-flex items-center disabled:opacity-60">
+            <button type="submit" disabled={isSaving} className="btn btn-primary inline-flex items-center disabled:opacity-60">
               <Plus size={17} className="mr-1" />
-              {saveMutation.isPending ? "Guardando..." : editingArea ? "Actualizar" : "Agregar"}
+              {isSaving ? "Guardando..." : editingArea ? "Actualizar" : "Agregar"}
             </button>
           </div>
         </div>
       </form>
 
       <div className="bg-white border border-gray-100 shadow rounded-lg overflow-hidden">
-        {areasQuery.isLoading ? (
+        {isLoading ? (
           <div className="p-10 text-center text-gray-500">Cargando áreas...</div>
-        ) : areasQuery.isError ? (
+        ) : isError ? (
           <div className="p-6 text-red-700 bg-red-50">No se pudieron cargar las áreas.</div>
-        ) : !areasQuery.data?.length ? (
+        ) : areas.length === 0 ? (
           <div className="p-10 text-center text-gray-400">No hay áreas registradas.</div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {areasQuery.data.map((area) => (
+            {areas.map((area) => (
               <div key={area.id} className="flex items-center justify-between px-5 py-4 hover:bg-gray-50">
                 <div className="flex items-center min-w-0">
                   <div className="h-9 w-9 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center mr-3">
@@ -134,12 +140,12 @@ const Areas = () => {
       <ConfirmModal
         isOpen={!!areaToDelete}
         onClose={() => setAreaToDelete(null)}
-        onConfirm={() => areaToDelete && deleteMutation.mutate(areaToDelete.id)}
+        onConfirm={confirmDelete}
         title="Eliminar área"
         message={`¿Deseas eliminar el área ${areaToDelete?.name || ""}? Solo será posible si no tiene usuarios relacionados.`}
         confirmLabel="Eliminar"
         isDanger
-        isLoading={deleteMutation.isPending}
+        isLoading={isDeleting}
       />
     </div>
   );
