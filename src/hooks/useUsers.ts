@@ -65,7 +65,7 @@ const handleMutationError = async (error: unknown) => {
 
 export const useUsers = (userId?: string): UsersHookReturn => {
   const queryClient = useQueryClient();
-  const { createUser } = useAuthStore();
+  const { createUser, user: authenticatedUser, _setUser } = useAuthStore();
 
   const [usersPage, setUsersPage] = useState(1);
   const [usersLimit, setUsersLimit] = useState(10);
@@ -109,7 +109,7 @@ export const useUsers = (userId?: string): UsersHookReturn => {
       throw new Error("El primer nombre y ambos apellidos son requeridos");
     }
     if (userData.id) {
-      await usersApi.updateUser(userData.id, {
+      const updatedProfile = await usersApi.updateUser(userData.id, {
         email: userData.email,
         accountName: userData.accountName,
         firstName: userData.firstName,
@@ -121,7 +121,9 @@ export const useUsers = (userId?: string): UsersHookReturn => {
         areaId: userData.areaId || null,
         roleKey: userData.role === "admin" ? "ADMIN" : "USER",
       });
-      return userData;
+      const updatedUser = mapSupabaseUser(updatedProfile);
+      if (authenticatedUser?.id === updatedUser.id) _setUser(updatedUser);
+      return updatedUser;
     }
 
     await createUser(userData);

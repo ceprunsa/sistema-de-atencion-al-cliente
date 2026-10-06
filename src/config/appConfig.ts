@@ -20,21 +20,21 @@ export interface AppConfig {
 }
 
 const appConfig: AppConfig = {
-  name: "Sistema de Atencion al Cliente",
-  fullName: "Sistema de Atencion al Cliente",
-  tagline: "Sistema de gestión de atención al cliente",
+  name: "Registro de Atención al Cliente",
+  fullName: "Sistema de Registro de Atención al Cliente de CEPRUNSA",
+  tagline: "Atenciones, derivaciones y satisfacción en un solo lugar",
   description:
-    "Esta es una aplicación base para la gestión de usuarios y administración de recursos. Utiliza tu cuenta institucional para acceder al sistema y gestionar la información de manera eficiente.",
+    "Plataforma institucional para registrar y dar seguimiento a las atenciones brindadas por CEPRUNSA. Centraliza la identificación del cliente, las consultas, las derivaciones entre áreas y las encuestas de satisfacción.",
   features: [
-    { text: "Gestión de usuarios y permisos" },
-    { text: "Panel de administración intuitivo" },
-    { text: "Autenticación segura con Google" },
-    { text: "Interfaz responsiva para todos los dispositivos" },
-    { text: "Registro de atención al cliente" },
-    { text: "Generación de reportes y estadísticas" },
+    { text: "Registro y seguimiento de atenciones con código RAC" },
+    { text: "Consulta de DNI y gestión de datos del cliente" },
+    { text: "Derivaciones y buzón de trabajo por áreas" },
+    { text: "Encuestas de satisfacción por tablet y correo" },
+    { text: "Administración de usuarios, áreas y mesas de atención" },
+    { text: "Acceso institucional con roles y permisos" },
   ],
   loginButtonLabel: "Iniciar sesión con Google",
-  supportText: "Para soporte técnico, contacte al administrador del sistema.",
+  supportText: "Para soporte técnico, comunícate con el administrador del sistema de CEPRUNSA.",
 };
 
 export default appConfig;

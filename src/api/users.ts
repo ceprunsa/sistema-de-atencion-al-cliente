@@ -145,19 +145,33 @@ const getRoleByKey = async (roleKey: string): Promise<Role> => {
 const setUserRole = async (userId: string, roleKey: string) => {
   const role = await getRoleByKey(roleKey);
 
+  const { data: currentAssignments, error: readError } = await supabase
+    .from("user_roles")
+    .select("role_id")
+    .eq("user_id", userId);
+
+  if (readError) throw readError;
+
+  const targetAlreadyAssigned = (currentAssignments || []).some(
+    (assignment) => assignment.role_id === role.id,
+  );
+
+  if (!targetAlreadyAssigned) {
+    const { error: insertError } = await supabase.from("user_roles").insert({
+      user_id: userId,
+      role_id: role.id,
+    });
+
+    if (insertError) throw insertError;
+  }
+
   const { error: deleteError } = await supabase
     .from("user_roles")
     .delete()
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .neq("role_id", role.id);
 
   if (deleteError) throw deleteError;
-
-  const { error: insertError } = await supabase.from("user_roles").insert({
-    user_id: userId,
-    role_id: role.id,
-  });
-
-  if (insertError) throw insertError;
 };
 
 const acceptInvitation = async (currentUser: AuthUserData) => {
