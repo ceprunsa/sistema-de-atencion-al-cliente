@@ -73,6 +73,70 @@ export interface Database {
           },
         ];
       };
+      dni_lookup_rate_limits: {
+        Row: {
+          scope_type: string;
+          scope_key: string;
+          window_started_at: string;
+          request_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          scope_type: string;
+          scope_key: string;
+          window_started_at: string;
+          request_count?: number;
+          updated_at?: string;
+        };
+        Update: {
+          scope_type?: string;
+          scope_key?: string;
+          window_started_at?: string;
+          request_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      dni_lookup_attempts: {
+        Row: {
+          id: number;
+          user_id: string | null;
+          origin_hash: string;
+          document_hash: string;
+          outcome: string;
+          provider_status: number | null;
+          duration_ms: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id?: string | null;
+          origin_hash: string;
+          document_hash: string;
+          outcome: string;
+          provider_status?: number | null;
+          duration_ms: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string | null;
+          origin_hash?: string;
+          document_hash?: string;
+          outcome?: string;
+          provider_status?: number | null;
+          duration_ms?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "dni_lookup_attempts_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       service_channels: {
         Row: {
           id: string;
@@ -408,6 +472,40 @@ export interface Database {
           },
         ];
       };
+      referral_surveys: {
+        Row: {
+          id: string; referral_id: string; status: string; response: string | null;
+          recipient_email: string | null; survey_token: string | null;
+          token_expires_at: string | null; email_outbox_id: string | null;
+          sent_at: string | null; completed_at: string | null;
+          closed_at: string | null; closed_reason: string | null;
+          created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; referral_id: string; status: string; response?: string | null;
+          recipient_email?: string | null; survey_token?: string | null;
+          token_expires_at?: string | null; email_outbox_id?: string | null;
+          sent_at?: string | null; completed_at?: string | null;
+          closed_at?: string | null; closed_reason?: string | null;
+          created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; referral_id?: string; status?: string; response?: string | null;
+          recipient_email?: string | null; survey_token?: string | null;
+          token_expires_at?: string | null; email_outbox_id?: string | null;
+          sent_at?: string | null; completed_at?: string | null;
+          closed_at?: string | null; closed_reason?: string | null;
+          created_at?: string; updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "referral_surveys_referral_id_fkey";
+            columns: ["referral_id"];
+            referencedRelation: "attention_referrals";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       workstations: {
         Row: { id: string; name: string; is_active: boolean; created_at: string; updated_at: string };
         Insert: { id?: string; name: string; is_active?: boolean; created_at?: string; updated_at?: string };
@@ -454,6 +552,8 @@ export interface Database {
         Row: {
           id: string; attention_id: string; workstation_id: string; purpose: string; channel: string;
           status: string; response: string | null; requested_by: string | null; requested_by_name: string;
+          recipient_email: string | null; survey_token: string | null; token_expires_at: string | null;
+          email_outbox_id: string | null;
           sent_binding_id: string | null; sent_at: string | null; completed_at: string | null;
           closed_by: string | null; closed_by_name: string | null; closed_at: string | null;
           closed_reason: string | null; created_at: string; updated_at: string;
@@ -461,6 +561,8 @@ export interface Database {
         Insert: {
           id?: string; attention_id: string; workstation_id: string; purpose?: string; channel?: string;
           status?: string; response?: string | null; requested_by: string; requested_by_name: string;
+          recipient_email?: string | null; survey_token?: string | null; token_expires_at?: string | null;
+          email_outbox_id?: string | null;
           sent_binding_id?: string | null; sent_at?: string | null; completed_at?: string | null;
           closed_by?: string | null; closed_by_name?: string | null; closed_at?: string | null;
           closed_reason?: string | null; created_at?: string; updated_at?: string;
@@ -468,6 +570,8 @@ export interface Database {
         Update: {
           id?: string; attention_id?: string; workstation_id?: string; purpose?: string; channel?: string;
           status?: string; response?: string | null; requested_by?: string; requested_by_name?: string;
+          recipient_email?: string | null; survey_token?: string | null; token_expires_at?: string | null;
+          email_outbox_id?: string | null;
           sent_binding_id?: string | null; sent_at?: string | null; completed_at?: string | null;
           closed_by?: string | null; closed_by_name?: string | null; closed_at?: string | null;
           closed_reason?: string | null; created_at?: string; updated_at?: string;
@@ -486,6 +590,21 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      public_survey_rate_limits: {
+        Row: {
+          scope_type: string; scope_key: string; window_started_at: string;
+          request_count: number; updated_at: string;
+        };
+        Insert: {
+          scope_type: string; scope_key: string; window_started_at: string;
+          request_count?: number; updated_at?: string;
+        };
+        Update: {
+          scope_type?: string; scope_key?: string; window_started_at?: string;
+          request_count?: number; updated_at?: string;
+        };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -659,12 +778,26 @@ export interface Database {
           p_requester_type: string;
           p_conclusion: string;
           p_topics: Json;
+          p_client_contact_email: string | null;
           p_kinship_type_id?: string | null;
           p_destination_area_id?: string | null;
           p_requester_detail?: string | null;
           p_kinship_detail?: string | null;
         };
         Returns: Json;
+      };
+      consume_dni_lookup_rate_limit: {
+        Args: { p_user_id: string; p_origin_hash: string };
+        Returns: Array<{
+          allowed: boolean;
+          retry_after_seconds: number;
+          user_request_count: number;
+          origin_request_count: number;
+        }>;
+      };
+      get_pending_referral_count: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
       };
       disable_customer_attention: {
         Args: { p_attention_id: string; p_reason: string };
@@ -691,7 +824,12 @@ export interface Database {
       };
       conclude_attention_referral: {
         Args: { p_referral_id: string; p_conclusion: string };
-        Returns: void;
+        Returns: Json;
+      };
+      get_public_referral_survey: { Args: { p_token: string }; Returns: Json };
+      respond_public_referral_survey: {
+        Args: { p_token: string; p_response?: string | null; p_skip?: boolean };
+        Returns: Json;
       };
       assign_workstation: { Args: { p_workstation_id: string; p_user_id: string }; Returns: void };
       unassign_workstation: { Args: { p_workstation_id: string; p_reason: string }; Returns: void };
@@ -702,6 +840,17 @@ export interface Database {
       send_attention_survey: { Args: { p_attention_id: string }; Returns: void };
       get_current_operator_survey: { Args: Record<PropertyKey, never>; Returns: Json };
       get_attention_survey_status: { Args: { p_attention_id: string }; Returns: string };
+      get_attention_survey_state: { Args: { p_attention_id: string }; Returns: Json };
+      queue_attention_email_survey: { Args: { p_attention_id: string; p_email?: string | null }; Returns: Json };
+      consume_public_survey_rate_limit: {
+        Args: { p_origin_hash: string; p_token_hash: string };
+        Returns: Array<{ allowed: boolean; retry_after_seconds: number }>;
+      };
+      get_public_attention_survey: { Args: { p_token: string }; Returns: Json };
+      respond_public_attention_survey: {
+        Args: { p_token: string; p_response?: string | null; p_skip?: boolean };
+        Returns: Json;
+      };
       skip_attention_survey: { Args: { p_attention_id: string }; Returns: void };
       get_current_tablet_survey: { Args: Record<PropertyKey, never>; Returns: Json };
       answer_tablet_survey: { Args: { p_survey_id: string; p_response: string }; Returns: void };

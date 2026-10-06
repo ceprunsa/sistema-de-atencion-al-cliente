@@ -68,8 +68,9 @@ const AttentionDetail = () => {
       return;
     }
     try {
-      await concludeReferral({ id: attention.referral.id, conclusion: referralConclusion });
-      toast.success("Conclusión de la derivación registrada.");
+      const result = await concludeReferral({ id: attention.referral.id, conclusion: referralConclusion });
+      if (result.emailQueued) toast.success("Conclusión registrada y correo agregado a la cola.");
+      else toast(result.message, { icon: "ℹ️" });
       setReferralConclusion("");
     } catch (mutationError) {
       toast.error(mutationError instanceof Error ? mutationError.message : "No se pudo concluir la derivación.");
@@ -159,7 +160,7 @@ const AttentionDetail = () => {
 
       <section className="mt-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2"><Star size={20} className="text-[#1A2855]" /><h2 className="font-semibold text-gray-900">Encuesta de satisfacción</h2></div>
-        {!attention.survey ? <p className="text-sm text-gray-500">{isAdmin || attention.createdById === user?.id ? "Sin encuesta (registro anterior a esta funcionalidad)." : "El estado de la encuesta no está disponible para este usuario."}</p> : <div className="text-sm"><span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">{{ PENDING_DECISION: "Pendiente de decidir", SENT: "Enviada: esperando respuesta", COMPLETED: "Completada", SKIPPED: "Omitida", CANCELLED: "Cancelada", NONE: "Sin encuesta" }[attention.survey.status]}</span>{attention.survey.response && <p className="mt-3 text-gray-700">Respuesta: {{ VERY_SATISFIED: "Muy satisfecho", SATISFIED: "Satisfecho", DISSATISFIED: "Insatisfecho", VERY_DISSATISFIED: "Muy insatisfecho" }[attention.survey.response]}</p>}{attention.survey.completedAt && <p className="mt-1 text-xs text-gray-500">Realizada el {formatLocalDate(attention.survey.completedAt)}</p>}{attention.survey.closedReason && <p className="mt-3 text-gray-600">{attention.survey.closedReason}</p>}</div>}
+        {!attention.survey ? <p className="text-sm text-gray-500">{isAdmin || attention.createdById === user?.id ? "Sin encuesta (registro anterior a esta funcionalidad)." : "El estado de la encuesta no está disponible para este usuario."}</p> : <div className="text-sm"><span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">{{ PENDING_DECISION: "Pendiente de decidir", QUEUED: "En cola de correo", SENT: "Enviada: esperando respuesta", COMPLETED: "Completada", SKIPPED: "Omitida", CANCELLED: "Cancelada", NONE: "Sin encuesta" }[attention.survey.status]}</span><p className="mt-3 text-gray-600">Canal: {{ UNDECIDED: "Sin decidir", TABLET: "Tablet", EMAIL: "Correo electrónico" }[attention.survey.channel]}</p>{attention.survey.recipientEmail && <p className="mt-1 text-gray-600">Destinatario: {attention.survey.recipientEmail}</p>}{attention.survey.expiresAt && <p className="mt-1 text-xs text-gray-500">El enlace vence el {formatLocalDate(attention.survey.expiresAt)}</p>}{attention.survey.response && <p className="mt-3 text-gray-700">Respuesta: {{ VERY_SATISFIED: "Muy satisfecho", SATISFIED: "Satisfecho", DISSATISFIED: "Insatisfecho", VERY_DISSATISFIED: "Muy insatisfecho" }[attention.survey.response]}</p>}{attention.survey.completedAt && <p className="mt-1 text-xs text-gray-500">Realizada el {formatLocalDate(attention.survey.completedAt)}</p>}{attention.survey.closedReason && <p className="mt-3 text-gray-600">{attention.survey.closedReason}</p>}</div>}
       </section>
 
       <section className="mt-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
@@ -177,6 +178,21 @@ const AttentionDetail = () => {
                 <h3 className="font-medium text-gray-800">Conclusión de la derivación</h3>
                 <p className="mt-2 whitespace-pre-wrap leading-6 text-gray-700">{attention.referral.conclusion}</p>
                 <p className="mt-2 text-xs text-gray-500">Registrada por {attention.referral.concludedByName} el {formatLocalDate(attention.referral.concludedAt)}</p>
+                <div className="mt-4 rounded-md border border-gray-200 p-4">
+                  <h4 className="font-medium text-gray-800">Encuesta de la derivación</h4>
+                  {!attention.referral.survey ? (
+                    <p className="mt-2 text-gray-500">Sin encuesta asociada; la derivación fue resuelta antes de esta funcionalidad.</p>
+                  ) : (
+                    <div className="mt-2 space-y-1 text-gray-600">
+                      <p>Estado: {{ QUEUED: "En cola de correo", SENT: "Enviada: esperando respuesta", COMPLETED: "Completada", SKIPPED: "Omitida", CANCELLED: "Cancelada" }[attention.referral.survey.status]}</p>
+                      {attention.referral.survey.recipientEmail && <p>Destinatario: {attention.referral.survey.recipientEmail}</p>}
+                      {attention.referral.survey.expiresAt && <p className="text-xs">El enlace vence el {formatLocalDate(attention.referral.survey.expiresAt)}</p>}
+                      {attention.referral.survey.response && <p>Respuesta: {{ VERY_SATISFIED: "Muy satisfecho", SATISFIED: "Satisfecho", DISSATISFIED: "Insatisfecho", VERY_DISSATISFIED: "Muy insatisfecho" }[attention.referral.survey.response]}</p>}
+                      {attention.referral.survey.completedAt && <p className="text-xs">Respondida el {formatLocalDate(attention.referral.survey.completedAt)}</p>}
+                      {attention.referral.survey.closedReason && <p className="text-sm text-amber-700">{attention.referral.survey.closedReason}</p>}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : attention.referral.status === "PENDING" ? (
               <div>

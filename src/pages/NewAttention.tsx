@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
   ClipboardPlus,
+  Mail,
   Search,
   Send,
   SkipForward,
@@ -18,6 +19,7 @@ import type {
   AttentionRequesterType,
   Client,
   CreatedCustomerAttention,
+  SurveyChannel,
   SurveyStatus,
 } from "../types";
 
@@ -56,6 +58,7 @@ const NewAttention = () => {
 
   const [dni, setDni] = useState("");
   const [lookupCompleted, setLookupCompleted] = useState(false);
+  const [lookupSource, setLookupSource] = useState<"LOCAL" | "EXTERNAL" | "MANUAL" | null>(null);
   const [existingClient, setExistingClient] = useState<Client | null>(null);
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   const [serviceChannelId, setServiceChannelId] = useState("");
@@ -70,6 +73,8 @@ const NewAttention = () => {
   const [createdAttention, setCreatedAttention] =
     useState<CreatedCustomerAttention | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<SurveyStatus>("NONE");
+  const [surveyChannel, setSurveyChannel] = useState<SurveyChannel>("UNDECIDED");
+  const [surveyEmail, setSurveyEmail] = useState("");
   const [isUpdatingSurvey, setIsUpdatingSurvey] = useState(false);
 
   useEffect(() => {
@@ -77,16 +82,21 @@ const NewAttention = () => {
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const refreshStatus = () => {
-      void surveysApi.getStatus(createdAttention.id).then((status) => {
-        if (!cancelled && status) setSurveyStatus(status);
+      void surveysApi.getState(createdAttention.id).then((state) => {
+        if (!cancelled && state) {
+          setSurveyStatus(state.status);
+          setSurveyChannel(state.channel);
+          if (state.recipientEmail) setSurveyEmail(state.recipientEmail);
+        }
       }).catch(() => undefined);
     };
     void supabase.realtime.setAuth().then(() => {
       if (cancelled) return;
       channel = supabase.channel(`operator:${user.id}`, { config: { private: true } })
         .on("broadcast", { event: "survey_changed" }, (message) => {
-          const payload = message.payload as { status?: SurveyStatus };
+          const payload = message.payload as { status?: SurveyStatus; channel?: SurveyChannel };
           if (payload.status) setSurveyStatus(payload.status);
+          if (payload.channel) setSurveyChannel(payload.channel);
         })
         .subscribe((status) => { if (status === "SUBSCRIBED") refreshStatus(); });
     });
@@ -101,6 +111,7 @@ const NewAttention = () => {
       if (!pending) return;
       setCreatedAttention({ id: pending.attentionId, racCode: pending.racCode });
       setSurveyStatus(pending.status);
+      setSurveyChannel(pending.channel);
     }).catch(() => undefined);
   }, [user, createdAttention]);
 
@@ -118,6 +129,7 @@ const NewAttention = () => {
   const resetClientLookup = (nextDni = "") => {
     setDni(nextDni);
     setLookupCompleted(false);
+    setLookupSource(null);
     setExistingClient(null);
     setClient(EMPTY_CLIENT);
   };
@@ -134,6 +146,8 @@ const NewAttention = () => {
     setDestinationAreaId("");
     setCreatedAttention(null);
     setSurveyStatus("NONE");
+    setSurveyChannel("UNDECIDED");
+    setSurveyEmail("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -149,29 +163,43 @@ const NewAttention = () => {
     }
 
     try {
-      const found = await findClient(dni);
-      setExistingClient(found);
+      const result = await findClient(dni);
       setLookupCompleted(true);
-      setClient(
-        found
-          ? {
-              firstName: found.firstName,
-              middleName: found.middleName || "",
-              paternalSurname: found.paternalSurname,
-              maternalSurname: found.maternalSurname,
-              email: found.email || "",
-              phone: found.phone || "",
-            }
-          : EMPTY_CLIENT,
-      );
-      toast.success(
-        found
-          ? "Cliente encontrado. Sus datos fueron cargados."
-          : "DNI no registrado. Completa los datos del nuevo cliente.",
-      );
+      setLookupSource(result.source);
+      if (result.source === "LOCAL") {
+        const found = result.client;
+        setExistingClient(found);
+        setClient({
+          firstName: found.firstName,
+          middleName: found.middleName || "",
+          paternalSurname: found.paternalSurname,
+          maternalSurname: found.maternalSurname,
+          email: found.email || "",
+          phone: found.phone || "",
+        });
+        toast.success("Cliente encontrado en el sistema. Sus datos fueron cargados.");
+      } else if (result.source === "EXTERNAL") {
+        setExistingClient(null);
+        setClient({
+          firstName: result.person.firstName,
+          middleName: result.person.middleName || "",
+          paternalSurname: result.person.paternalSurname,
+          maternalSurname: result.person.maternalSurname,
+          email: "",
+          phone: "",
+        });
+        toast.success("DNI encontrado. Revisa los datos antes de registrar la atención.");
+      } else {
+        setExistingClient(null);
+        setClient(EMPTY_CLIENT);
+        toast(result.message, { icon: "ℹ️" });
+      }
     } catch (error) {
-      setLookupCompleted(false);
-      toast.error(getErrorMessage(error));
+      setExistingClient(null);
+      setClient(EMPTY_CLIENT);
+      setLookupCompleted(true);
+      setLookupSource("MANUAL");
+      toast.error(`${getErrorMessage(error)} Ingresa los datos manualmente.`);
     }
   };
 
@@ -230,6 +258,10 @@ const NewAttention = () => {
       toast.error("Selecciona al menos un tema de consulta.");
       return;
     }
+    if (destinationAreaId && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(client.email.trim())) {
+      toast.error("Registra un correo electrónico válido antes de crear la derivación.");
+      return;
+    }
 
     const selectedTopics = (catalogs?.consultationTopics || []).filter((topic) =>
       selectedTopicIds.includes(topic.id),
@@ -264,6 +296,8 @@ const NewAttention = () => {
       });
       setCreatedAttention(result);
       setSurveyStatus("PENDING_DECISION");
+      setSurveyChannel("UNDECIDED");
+      setSurveyEmail(client.email.trim());
       toast.success(`Atención ${result.racCode} registrada correctamente.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -284,13 +318,25 @@ const NewAttention = () => {
   }
 
   if (createdAttention) {
-    const handleSurvey = async (action: "send" | "skip") => {
+    const handleSurvey = async (action: "tablet" | "email" | "skip") => {
       setIsUpdatingSurvey(true);
       try {
-        if (action === "send") {
+        if (action === "tablet") {
           await surveysApi.send(createdAttention.id);
           setSurveyStatus("SENT");
+          setSurveyChannel("TABLET");
           toast.success("Encuesta enviada a la tablet.");
+        } else if (action === "email") {
+          const normalizedEmail = surveyEmail.trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(normalizedEmail)) {
+            toast.error("Ingresa un correo electrónico válido.");
+            return;
+          }
+          const state = await surveysApi.sendByEmail(createdAttention.id, normalizedEmail);
+          setSurveyStatus(state.status);
+          setSurveyChannel(state.channel);
+          setSurveyEmail(state.recipientEmail || normalizedEmail);
+          toast.success("La encuesta fue agregada a la cola de correo.");
         } else {
           await surveysApi.skipByOperator(createdAttention.id);
           setSurveyStatus("SKIPPED");
@@ -302,7 +348,8 @@ const NewAttention = () => {
         setIsUpdatingSurvey(false);
       }
     };
-    const surveyClosed = ["COMPLETED", "SKIPPED", "CANCELLED"].includes(surveyStatus);
+    const canRegisterAnother = ["QUEUED", "COMPLETED", "SKIPPED", "CANCELLED"].includes(surveyStatus)
+      || (surveyStatus === "SENT" && surveyChannel === "EMAIL");
     return (
       <div className="w-full max-w-3xl mx-auto">
         <div className="rounded-xl border border-green-200 bg-white p-8 text-center shadow-sm">
@@ -313,16 +360,24 @@ const NewAttention = () => {
             {createdAttention.racCode}
           </p>
           {surveyStatus === "PENDING_DECISION" && (
-            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("send")} className="btn btn-primary inline-flex items-center justify-center"><Send size={18} className="mr-2" />Enviar encuesta a la tablet</button>
-              <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("skip")} className="btn btn-secondary inline-flex items-center justify-center"><SkipForward size={18} className="mr-2" />Omitir encuesta</button>
+            <div className="mx-auto mt-7 max-w-xl rounded-lg border border-gray-200 p-4 text-left">
+              <label htmlFor="survey-email" className="block text-sm font-medium text-gray-700">Correo para la encuesta</label>
+              <input id="survey-email" type="email" value={surveyEmail} onChange={(event) => setSurveyEmail(event.target.value)} placeholder="cliente@correo.com" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+              <p className="mt-1 text-xs text-gray-500">Puedes corregirlo antes de enviar. También se actualizará el correo del cliente.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("tablet")} className="btn btn-primary inline-flex items-center justify-center"><Send size={18} className="mr-2" />Tablet</button>
+                <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("email")} className="btn btn-primary inline-flex items-center justify-center"><Mail size={18} className="mr-2" />Correo</button>
+                <button type="button" disabled={isUpdatingSurvey} onClick={() => void handleSurvey("skip")} className="btn btn-secondary inline-flex items-center justify-center"><SkipForward size={18} className="mr-2" />Omitir</button>
+              </div>
             </div>
           )}
-          {surveyStatus === "SENT" && <div className="mt-7 rounded-lg bg-amber-50 p-4 text-amber-800"><p className="font-medium">Encuesta enviada</p><p className="mt-1 text-sm">Esperando la respuesta en la tablet. No se puede registrar otra atención todavía.</p></div>}
+          {surveyStatus === "QUEUED" && <div className="mt-7 rounded-lg bg-blue-50 p-4 text-blue-800"><p className="font-medium">Encuesta en cola de correo</p><p className="mt-1 text-sm">Se enviará a {surveyEmail}. Ya puedes registrar otra atención.</p></div>}
+          {surveyStatus === "SENT" && surveyChannel === "TABLET" && <div className="mt-7 rounded-lg bg-amber-50 p-4 text-amber-800"><p className="font-medium">Encuesta enviada</p><p className="mt-1 text-sm">Esperando la respuesta en la tablet. No se puede registrar otra atención todavía.</p></div>}
+          {surveyStatus === "SENT" && surveyChannel === "EMAIL" && <div className="mt-7 rounded-lg bg-blue-50 p-4 text-blue-800"><p className="font-medium">Encuesta enviada por correo</p><p className="mt-1 text-sm">El cliente puede responder desde su enlace. Ya puedes registrar otra atención.</p></div>}
           {surveyStatus === "COMPLETED" && <div className="mt-7 rounded-lg bg-green-50 p-4 text-green-700">Encuesta completada correctamente.</div>}
           {surveyStatus === "SKIPPED" && <div className="mt-7 rounded-lg bg-gray-50 p-4 text-gray-700">Encuesta omitida.</div>}
           {surveyStatus === "CANCELLED" && <div className="mt-7 rounded-lg bg-red-50 p-4 text-red-700">Encuesta cancelada.</div>}
-          {surveyClosed && <button type="button" onClick={resetForm} className="btn btn-primary mt-7 inline-flex items-center"><ClipboardPlus size={18} className="mr-2" />Registrar otra atención</button>}
+          {canRegisterAnother && <button type="button" onClick={resetForm} className="btn btn-primary mt-7 inline-flex items-center"><ClipboardPlus size={18} className="mr-2" />Registrar otra atención</button>}
         </div>
       </div>
     );
@@ -372,9 +427,11 @@ const NewAttention = () => {
           {lookupCompleted && (
             <div className={`mt-4 flex items-center gap-2 rounded-md p-3 text-sm ${existingClient ? "bg-green-50 text-green-800" : "bg-blue-50 text-blue-800"}`}>
               {existingClient ? <UserCheck size={18} /> : <UserPlus size={18} />}
-              {existingClient
+              {lookupSource === "LOCAL"
                 ? "Cliente existente: los datos se muestran solo para consulta."
-                : "Cliente nuevo: completa sus datos personales."}
+                : lookupSource === "EXTERNAL"
+                  ? "Datos obtenidos del servicio DNI: revísalos y completa los datos opcionales."
+                  : "No se obtuvieron datos automáticamente: completa los datos personales."}
             </div>
           )}
 
@@ -394,7 +451,7 @@ const NewAttention = () => {
                   type={field === "email" ? "email" : "text"}
                   value={client[field]}
                   onChange={(event) => updateClient(field, event.target.value)}
-                  disabled={clientInputsDisabled}
+                  disabled={clientInputsDisabled && field !== "email"}
                   required={!existingClient && ["firstName", "paternalSurname", "maternalSurname"].includes(field)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 disabled:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
                 />
@@ -503,6 +560,7 @@ const NewAttention = () => {
                 <option value="">Sin derivación</option>
                 {catalogs.areas.filter((area) => area.id !== user?.areaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
               </select>
+              {destinationAreaId && <p className="mt-2 text-xs text-amber-700">La derivación requiere un correo válido del cliente para enviar el resultado y su encuesta.</p>}
             </div>
             <div className="mt-4">
               <SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} />

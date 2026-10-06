@@ -1,20 +1,68 @@
 import { supabase } from "../supabase/config";
-import type { SurveyResponse, TabletBinding, TabletSurvey } from "../types";
+import type { SurveyChannel, SurveyResponse, SurveyStatus, TabletBinding, TabletSurvey } from "../types";
 
 const unwrap = <T>(value: unknown) => value as T | null;
-const fail = (error: { message?: string } | null) => { if (error) throw new Error(error.message || "No se pudo completar la operación."); };
+const fail = (error: { message?: string } | null) => {
+  if (error) throw new Error(error.message || "No se pudo completar la operación.");
+};
+
+export type AttentionSurveyState = {
+  status: Exclude<SurveyStatus, "NONE">;
+  channel: SurveyChannel;
+  recipientEmail: string | null;
+  expiresAt: string | null;
+};
+
+export type PublicSurveyState = {
+  state: "OPEN" | "INVALID" | "EXPIRED" | "CLOSED" | "PENDING_DELIVERY";
+  racCode?: string;
+  expiresAt?: string;
+  surveyKind?: "ATTENTION" | "REFERRAL";
+};
+
+export type PublicSurveyResult = {
+  result: "COMPLETED" | "SKIPPED" | "INVALID" | "EXPIRED" | "CLOSED" | "INVALID_RESPONSE";
+};
+
+const invokePublicSurvey = async <T>(body: Record<string, unknown>): Promise<T> => {
+  const { data, error } = await supabase.functions.invoke("public-survey", { body });
+  if (error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      try {
+        const payload = await context.clone().json() as { message?: string };
+        if (payload.message) throw new Error(payload.message);
+      } catch (responseError) {
+        if (responseError instanceof Error && responseError.message !== "Unexpected end of JSON input") throw responseError;
+      }
+    }
+    throw new Error(error.message || "No se pudo completar la operación.");
+  }
+  return data as T;
+};
 
 export const surveysApi = {
-  getOperatorPending: async (): Promise<{ attentionId: string; racCode: string; status: "PENDING_DECISION" | "SENT" } | null> => {
+  getOperatorPending: async (): Promise<{
+    attentionId: string;
+    racCode: string;
+    status: "PENDING_DECISION" | "SENT";
+    channel: SurveyChannel;
+  } | null> => {
     const { data, error } = await supabase.rpc("get_current_operator_survey"); fail(error);
-    return unwrap<{ attentionId: string; racCode: string; status: "PENDING_DECISION" | "SENT" }>(data);
+    return unwrap(data);
   },
-  getStatus: async (attentionId: string) => {
-    const { data, error } = await supabase.rpc("get_attention_survey_status", { p_attention_id: attentionId }); fail(error);
-    return data as "PENDING_DECISION" | "SENT" | "COMPLETED" | "SKIPPED" | "CANCELLED" | null;
+  getState: async (attentionId: string): Promise<AttentionSurveyState | null> => {
+    const { data, error } = await supabase.rpc("get_attention_survey_state", { p_attention_id: attentionId }); fail(error);
+    return unwrap(data);
   },
   send: async (attentionId: string) => {
     const { error } = await supabase.rpc("send_attention_survey", { p_attention_id: attentionId }); fail(error);
+  },
+  sendByEmail: async (attentionId: string, email: string): Promise<AttentionSurveyState> => {
+    const { data, error } = await supabase.rpc("queue_attention_email_survey", { p_attention_id: attentionId, p_email: email }); fail(error);
+    const state = unwrap<AttentionSurveyState>(data);
+    if (!state) throw new Error("Supabase no devolvió el estado de la encuesta.");
+    return state;
   },
   skipByOperator: async (attentionId: string) => {
     const { error } = await supabase.rpc("skip_attention_survey", { p_attention_id: attentionId }); fail(error);
@@ -42,4 +90,7 @@ export const surveysApi = {
   skipFromTablet: async (surveyId: string) => {
     const { error } = await supabase.rpc("skip_tablet_survey", { p_survey_id: surveyId }); fail(error);
   },
+  getPublic: (token: string) => invokePublicSurvey<PublicSurveyState>({ action: "get", token }),
+  respondPublic: (token: string, response: SurveyResponse | null, skip = false) =>
+    invokePublicSurvey<PublicSurveyResult>({ action: "respond", token, response, skip }),
 };

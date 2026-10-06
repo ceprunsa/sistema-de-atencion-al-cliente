@@ -7,6 +7,7 @@ import { Building2, ClipboardPlus, Headphones, Home, Inbox, MonitorSmartphone, U
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
+import { usePendingReferralCount } from "../hooks/useReferrals";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const { user, logout, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { pendingCount } = usePendingReferralCount();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -170,7 +172,18 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                 >
                   <Inbox size={18} className="mr-3" />
                   <span>Derivaciones</span>
-                  {location.pathname.startsWith("/referrals") && <ChevronRight size={16} className="ml-auto" />}
+                  <span className="ml-auto flex items-center gap-2">
+                    {pendingCount > 0 && (
+                      <span
+                        className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"
+                        title={`${pendingCount} derivación${pendingCount === 1 ? "" : "es"} pendiente${pendingCount === 1 ? "" : "s"} para tu área`}
+                        aria-label={`${pendingCount} derivaciones pendientes`}
+                      >
+                        {pendingCount > 99 ? "99+" : pendingCount}
+                      </span>
+                    )}
+                    {location.pathname.startsWith("/referrals") && <ChevronRight size={16} />}
+                  </span>
                 </Link>
               </li>
               {isAdmin && (

@@ -4,17 +4,27 @@ import type {
   Area,
   AttentionListItem,
   Client,
+  ClientLookupResult,
   ConsultationTopic,
   ConsultationType,
+  ConcludeReferralResult,
   CreatedCustomerAttention,
   CustomerAttentionDetail,
   CreateCustomerAttentionInput,
   KinshipType,
   NewAttentionCatalogs,
   PaginatedResponse,
+  ReferralSurvey,
   ServiceChannel,
   UpdateCustomerAttentionInput,
 } from "../types";
+
+type ReferralDetailRow = Database["public"]["Tables"]["attention_referrals"]["Row"] & {
+  referral_surveys:
+    | Database["public"]["Tables"]["referral_surveys"]["Row"]
+    | Array<Database["public"]["Tables"]["referral_surveys"]["Row"]>
+    | null;
+};
 
 type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
   clients: DatabaseClientRow | null;
@@ -28,8 +38,8 @@ type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
     } | null;
   }>;
   attention_referrals:
-    | Database["public"]["Tables"]["attention_referrals"]["Row"]
-    | Array<Database["public"]["Tables"]["attention_referrals"]["Row"]>
+    | ReferralDetailRow
+    | Array<ReferralDetailRow>
     | null;
   attention_surveys:
     | Database["public"]["Tables"]["attention_surveys"]["Row"]
@@ -118,7 +128,7 @@ export const attentionsApi = {
     const { data, error } = await supabase
       .from("customer_attentions")
       .select(
-        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_referrals(*),attention_surveys(*)",
+        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_referrals(*,referral_surveys(id,status,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)),attention_surveys(id,status,channel,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -137,6 +147,11 @@ export const attentionsApi = {
     const survey = Array.isArray(row.attention_surveys)
       ? row.attention_surveys[0]
       : row.attention_surveys;
+    const referralSurvey = referral
+      ? (Array.isArray(referral.referral_surveys)
+          ? referral.referral_surveys[0]
+          : referral.referral_surveys)
+      : null;
     return {
       id: row.id,
       racYear: row.rac_year,
@@ -197,13 +212,29 @@ export const attentionsApi = {
             cancelledReason: referral.cancelled_reason,
             cancelledByName: referral.cancelled_by_name,
             cancelledAt: referral.cancelled_at,
+            survey: referralSurvey
+              ? {
+                  id: referralSurvey.id,
+                  status: referralSurvey.status as ReferralSurvey["status"],
+                  response: referralSurvey.response as NonNullable<NonNullable<CustomerAttentionDetail["referral"]>["survey"]>["response"],
+                  recipientEmail: referralSurvey.recipient_email,
+                  expiresAt: referralSurvey.token_expires_at,
+                  sentAt: referralSurvey.sent_at,
+                  completedAt: referralSurvey.completed_at,
+                  closedReason: referralSurvey.closed_reason,
+                  closedAt: referralSurvey.closed_at,
+                }
+              : null,
           }
         : null,
       survey: survey
         ? {
             id: survey.id,
             status: survey.status as NonNullable<CustomerAttentionDetail["survey"]>["status"],
+            channel: survey.channel as NonNullable<CustomerAttentionDetail["survey"]>["channel"],
             response: survey.response as NonNullable<CustomerAttentionDetail["survey"]>["response"],
+            recipientEmail: survey.recipient_email,
+            expiresAt: survey.token_expires_at,
             sentAt: survey.sent_at,
             completedAt: survey.completed_at,
             closedReason: survey.closed_reason,
@@ -213,7 +244,7 @@ export const attentionsApi = {
     };
   },
 
-  findClientByDni: async (dni: string): Promise<Client | null> => {
+  findClientByDni: async (dni: string): Promise<ClientLookupResult> => {
     const { data, error } = await supabase
       .from("clients")
       .select(
@@ -223,7 +254,68 @@ export const attentionsApi = {
       .maybeSingle();
 
     if (error) throw new Error(getErrorMessage(error));
-    return data ? mapClient(data as ClientRow) : null;
+    if (data) return { source: "LOCAL", client: mapClient(data as ClientRow) };
+
+    const { data: externalData, error: externalError } = await supabase.functions.invoke(
+      "dni-lookup",
+      { body: { dni } },
+    );
+    if (externalError) {
+      let message = "No se pudo consultar el DNI.";
+      const context = (externalError as { context?: unknown }).context;
+      if (context instanceof Response) {
+        try {
+          const body = await context.clone().json() as { message?: unknown };
+          if (typeof body.message === "string" && body.message.trim()) message = body.message;
+        } catch {
+          // El mensaje genérico permite continuar manualmente si la respuesta no trae JSON.
+        }
+      }
+      throw new Error(message);
+    }
+
+    const result = externalData as {
+      status?: unknown;
+      source?: unknown;
+      message?: unknown;
+      client?: ClientRow;
+      person?: {
+        firstName?: unknown;
+        middleName?: unknown;
+        paternalSurname?: unknown;
+        maternalSurname?: unknown;
+      };
+    } | null;
+    if (result?.status === "FOUND" && result.source === "LOCAL" && result.client) {
+      return { source: "LOCAL", client: mapClient(result.client) };
+    }
+    if (
+      result?.status === "FOUND"
+      && result.source === "EXTERNAL"
+      && typeof result.person?.firstName === "string"
+      && (typeof result.person.middleName === "string" || result.person.middleName === null)
+      && typeof result.person.paternalSurname === "string"
+      && typeof result.person.maternalSurname === "string"
+    ) {
+      return {
+        source: "EXTERNAL",
+        person: {
+          firstName: result.person.firstName,
+          middleName: result.person.middleName,
+          paternalSurname: result.person.paternalSurname,
+          maternalSurname: result.person.maternalSurname,
+        },
+      };
+    }
+    if (result?.status === "NOT_FOUND" || result?.status === "UNAVAILABLE") {
+      return {
+        source: "MANUAL",
+        message: typeof result.message === "string"
+          ? result.message
+          : "No se encontraron datos. Ingresa la información manualmente.",
+      };
+    }
+    throw new Error("El servicio de consulta DNI devolvió una respuesta no reconocida.");
   },
 
   getNewAttentionCatalogs: async (): Promise<NewAttentionCatalogs> => {
@@ -337,6 +429,7 @@ export const attentionsApi = {
       p_requester_type: values.requesterType,
       p_conclusion: values.conclusion.trim(),
       p_topics: values.topics.map((topic) => ({ topic_id: topic.topicId })),
+      p_client_contact_email: values.client.email || null,
       p_kinship_type_id: values.kinshipTypeId || null,
       p_destination_area_id: values.destinationAreaId || null,
       p_requester_detail: values.requesterDetail || null,
@@ -384,11 +477,12 @@ export const attentionsApi = {
     if (error) throw new Error(getErrorMessage(error));
   },
 
-  concludeReferral: async ({ id, conclusion }: { id: string; conclusion: string }): Promise<void> => {
-    const { error } = await supabase.rpc("conclude_attention_referral", {
+  concludeReferral: async ({ id, conclusion }: { id: string; conclusion: string }): Promise<ConcludeReferralResult> => {
+    const { data, error } = await supabase.rpc("conclude_attention_referral", {
       p_referral_id: id,
       p_conclusion: conclusion.trim(),
     });
     if (error) throw new Error(getErrorMessage(error));
+    return data as unknown as ConcludeReferralResult;
   },
 };

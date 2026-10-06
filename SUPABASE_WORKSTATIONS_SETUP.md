@@ -27,9 +27,11 @@ En un proyecto vacío ejecuta, en orden:
 1. `supabase/sql/01_setup.sql`.
 2. `supabase/sql/03_customer_service.sql`.
 3. `supabase/sql/04_workstations_surveys_referral_inbox.sql`.
-4. Edita el correo y los nombres de `supabase/sql/02_bootstrap_admin.sql` y ejecútalo.
-5. Configura el hook **Before User Created** descrito en `SUPABASE_USER_LIFECYCLE.md`.
-6. Ingresa por primera vez con la cuenta invitada del administrador.
+4. `supabase/sql/05_email_delivery_foundation.sql`.
+5. Edita el correo y los nombres de `supabase/sql/02_bootstrap_admin.sql` y ejecútalo.
+6. Configura el hook **Before User Created** descrito en `SUPABASE_USER_LIFECYCLE.md`.
+7. Configura el servicio de correo siguiendo `MAIL_SERVICE_SETUP.md`.
+8. Ingresa por primera vez con la cuenta invitada del administrador.
 
 ## 4. Google OAuth y redirecciones
 
@@ -119,4 +121,4 @@ npm run verify
 3. Despliega y prueba `/dashboard`, `/workstations`, `/referrals` y `/tablet`.
 4. Revisa logs de Postgres y Realtime si un canal privado no se suscribe.
 
-Esta ampliación no requiere una Edge Function nueva. Las operaciones sensibles usan funciones PostgreSQL `security definer` con validaciones internas y permisos restringidos.
+El flujo presencial de tablet no requiere una Edge Function. Si instalas la etapa 4 de encuestas por correo, configura además `public-survey` siguiendo `ATTENTION_EMAIL_SURVEY_SETUP.md`.

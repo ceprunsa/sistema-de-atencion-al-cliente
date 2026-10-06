@@ -8,7 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { areasApi } from "../api/areas";
 
-const surveyLabels: Record<string, string> = { NONE: "Sin encuesta", PENDING_DECISION: "Encuesta por decidir", SENT: "Encuesta enviada", COMPLETED: "Encuesta completada", SKIPPED: "Encuesta omitida", CANCELLED: "Encuesta cancelada" };
+const surveyLabels: Record<string, string> = { NONE: "Sin encuesta", PENDING_DECISION: "Encuesta por decidir", QUEUED: "Encuesta en cola", SENT: "Encuesta enviada", COMPLETED: "Encuesta completada", SKIPPED: "Encuesta omitida", CANCELLED: "Encuesta cancelada" };
 const referralLabels: Record<string, string> = { NONE: "Sin derivación", PENDING: "Derivación pendiente", RESOLVED: "Derivación resuelta", DISABLED: "Derivación inhabilitada", CANCELLED: "Derivación cancelada" };
 
 const Attentions = () => {

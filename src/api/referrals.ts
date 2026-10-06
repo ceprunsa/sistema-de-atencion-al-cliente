@@ -2,6 +2,11 @@ import { supabase } from "../supabase/config";
 import type { PaginatedResponse, ReferralInboxItem } from "../types";
 
 export const referralsApi = {
+  getPendingCount: async (): Promise<number> => {
+    const { data, error } = await supabase.rpc("get_pending_referral_count");
+    if (error) throw new Error(error.message);
+    return Math.max(0, Number(data || 0));
+  },
   listPending: async (page: number, limit: number, search: string, areaId?: string | null): Promise<PaginatedResponse<ReferralInboxItem>> => {
     const { data, error } = await supabase.rpc("list_referral_inbox", {
       p_page: page, p_limit: limit, p_search: search.trim(), p_area_id: areaId || null,

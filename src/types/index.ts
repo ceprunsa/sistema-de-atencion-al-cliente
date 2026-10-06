@@ -15,6 +15,7 @@ export type CustomerAttentionStatus = "ACTIVE" | "DISABLED";
 export type SurveyStatus =
   | "NONE"
   | "PENDING_DECISION"
+  | "QUEUED"
   | "SENT"
   | "COMPLETED"
   | "SKIPPED"
@@ -24,6 +25,7 @@ export type SurveyResponse =
   | "SATISFIED"
   | "DISSATISFIED"
   | "VERY_DISSATISFIED";
+export type SurveyChannel = "UNDECIDED" | "TABLET" | "EMAIL";
 export type ReferralStatus = "NONE" | "PENDING" | "RESOLVED" | "DISABLED" | "CANCELLED";
 
 export interface Workstation {
@@ -52,7 +54,10 @@ export interface TabletSurvey {
 export interface AttentionSurvey {
   id: string;
   status: SurveyStatus;
+  channel: SurveyChannel;
   response: SurveyResponse | null;
+  recipientEmail: string | null;
+  expiresAt: string | null;
   sentAt: string | null;
   completedAt: string | null;
   closedReason: string | null;
@@ -71,6 +76,19 @@ export interface Client {
   createdAt: string;
   updatedAt: string;
 }
+
+export type ClientLookupResult =
+  | { source: "LOCAL"; client: Client }
+  | {
+      source: "EXTERNAL";
+      person: {
+        firstName: string;
+        middleName: string | null;
+        paternalSurname: string;
+        maternalSurname: string;
+      };
+    }
+  | { source: "MANUAL"; message: string };
 
 export interface ServiceChannel {
   id: string;
@@ -126,6 +144,27 @@ export interface AttentionReferral {
   cancelledReason: string | null;
   cancelledByName: string | null;
   cancelledAt: string | null;
+  survey: ReferralSurvey | null;
+}
+
+export interface ReferralSurvey {
+  id: string;
+  status: Exclude<SurveyStatus, "NONE" | "PENDING_DECISION">;
+  response: SurveyResponse | null;
+  recipientEmail: string | null;
+  expiresAt: string | null;
+  sentAt: string | null;
+  completedAt: string | null;
+  closedReason: string | null;
+  closedAt: string | null;
+}
+
+export interface ConcludeReferralResult {
+  referralStatus: "RESOLVED";
+  surveyStatus: ReferralSurvey["status"];
+  emailQueued: boolean;
+  recipientEmail?: string;
+  message: string;
 }
 
 export interface CustomerAttention {

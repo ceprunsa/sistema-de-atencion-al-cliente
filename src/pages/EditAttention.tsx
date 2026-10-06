@@ -120,6 +120,11 @@ const EditAttention = () => {
       return;
     }
 
+    if (destinationAreaId && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(client.email.trim())) {
+      toast.error("Registra un correo electrónico válido antes de guardar la derivación.");
+      return;
+    }
+
     const selectedTopics = catalogs.consultationTopics.filter((topic) => selectedTopicIds.includes(topic.id));
 
     try {
@@ -190,7 +195,7 @@ const EditAttention = () => {
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Resultado y derivación</h2>
-          <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.filter((area) => area.id !== user?.areaId || area.id === destinationAreaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue cerrada.</p>}</div>
+          <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.filter((area) => area.id !== user?.areaId || area.id === destinationAreaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue cerrada.</p>}{destinationAreaId && !referralLocked && <p className="mt-2 text-xs text-amber-700">La derivación requiere un correo válido del cliente.</p>}</div>
           <div className="mt-4"><SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} label="Conclusión de la atención *" /></div>
         </section>
 

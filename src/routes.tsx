@@ -18,11 +18,16 @@ import EditAttention from "./pages/EditAttention";
 import Workstations from "./pages/Workstations";
 import ReferralInbox from "./pages/ReferralInbox";
 import Tablet from "./pages/Tablet";
+import PublicSurvey from "./pages/PublicSurvey";
 
 export const router = createBrowserRouter([
   {
     path: "/tablet",
     element: <Tablet />,
+  },
+  {
+    path: "/survey/:token",
+    element: <PublicSurvey />,
   },
   {
     path: "/",
