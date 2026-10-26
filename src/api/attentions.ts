@@ -2,6 +2,8 @@ import { supabase } from "../supabase/config";
 import type { Database } from "../supabase/types";
 import type {
   Area,
+  AdmissionProcess,
+  AttentionRegistrationState,
   AttentionListItem,
   Client,
   ClientLookupResult,
@@ -45,16 +47,28 @@ type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
     | Database["public"]["Tables"]["attention_surveys"]["Row"]
     | Array<Database["public"]["Tables"]["attention_surveys"]["Row"]>
     | null;
+  attention_admission_processes: Array<{
+    admission_processes: Database["public"]["Tables"]["admission_processes"]["Row"] | null;
+  }>;
 };
+
+const mapAdmissionProcess = (row: Database["public"]["Tables"]["admission_processes"]["Row"]): AdmissionProcess => ({
+  id: row.id,
+  phase: row.phase as AdmissionProcess["phase"],
+  customLabel: row.custom_label,
+  year: row.year,
+  isActive: row.is_active,
+});
 
 type ClientRow = DatabaseClientRow;
 type DatabaseClientRow = {
   id: string;
-  dni: string;
-  first_name: string;
+  dni: string | null;
+  display_name: string;
+  first_name: string | null;
   middle_name: string | null;
-  paternal_surname: string;
-  maternal_surname: string;
+  paternal_surname: string | null;
+  maternal_surname: string | null;
   email: string | null;
   phone: string | null;
   created_at: string;
@@ -64,6 +78,7 @@ type DatabaseClientRow = {
 const mapClient = (row: ClientRow): Client => ({
   id: row.id,
   dni: row.dni,
+  displayName: row.display_name,
   firstName: row.first_name,
   middleName: row.middle_name,
   paternalSurname: row.paternal_surname,
@@ -82,6 +97,33 @@ const getErrorMessage = (error: { code?: string; message?: string }) => {
 };
 
 export const attentionsApi = {
+  getRegistrationState: async (): Promise<AttentionRegistrationState> => {
+    const { data, error } = await supabase.rpc("get_my_attention_registration_state");
+    if (error?.code === "PGRST202") {
+      throw new Error("La verificación de mesa no está instalada. Ejecuta el SQL 11 en Supabase.");
+    }
+    if (error) throw new Error(getErrorMessage(error));
+
+    const state = data as {
+      allowed?: unknown;
+      reason?: unknown;
+      workstationId?: unknown;
+      workstationName?: unknown;
+    } | null;
+    if (!state || typeof state.allowed !== "boolean") {
+      throw new Error("Supabase no devolvió un estado válido para el registro de atenciones.");
+    }
+
+    return {
+      allowed: state.allowed,
+      reason: typeof state.reason === "string"
+        ? state.reason as AttentionRegistrationState["reason"]
+        : null,
+      workstationId: typeof state.workstationId === "string" ? state.workstationId : null,
+      workstationName: typeof state.workstationName === "string" ? state.workstationName : null,
+    };
+  },
+
   list: async (
     page: number,
     limit: number,
@@ -89,15 +131,20 @@ export const attentionsApi = {
     surveyStatus?: string,
     referralStatus?: string,
     areaId?: string,
+    admissionProcessId?: string,
   ): Promise<PaginatedResponse<AttentionListItem>> => {
-    const { data, error } = await supabase.rpc("list_customer_attentions_v2", {
+    const { data, error } = await supabase.rpc("list_customer_attentions_v3", {
       p_page: page,
       p_limit: limit,
       p_search: search.trim(),
       p_survey_status: surveyStatus || null,
       p_referral_status: referralStatus || null,
       p_area_id: areaId || null,
+      p_admission_process_id: admissionProcessId || null,
     });
+    if (error?.code === "PGRST202") {
+      throw new Error("El filtro de procesos no está instalado. Ejecuta el SQL 13 en Supabase.");
+    }
     if (error) throw new Error(getErrorMessage(error));
     const rows = data || [];
     const total = Number(rows[0]?.total_count || 0);
@@ -128,7 +175,7 @@ export const attentionsApi = {
     const { data, error } = await supabase
       .from("customer_attentions")
       .select(
-        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_referrals(*,referral_surveys(id,status,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)),attention_surveys(id,status,channel,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)",
+        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_admission_processes(admission_processes(*)),attention_referrals(*,referral_surveys(id,status,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)),attention_surveys(id,status,channel,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -179,6 +226,7 @@ export const attentionsApi = {
         id: row.service_channels.id,
         name: row.service_channels.name,
         detail: row.service_channels.detail,
+        category: row.service_channels.category as ServiceChannel["category"],
         isActive: row.service_channels.is_active,
         disabledByName: row.service_channels.disabled_by_name,
         disabledAt: row.service_channels.disabled_at,
@@ -241,6 +289,9 @@ export const attentionsApi = {
             closedAt: survey.closed_at,
           }
         : null,
+      admissionProcesses: row.attention_admission_processes
+        .filter((item) => item.admission_processes)
+        .map((item) => mapAdmissionProcess(item.admission_processes!)),
     };
   },
 
@@ -248,7 +299,7 @@ export const attentionsApi = {
     const { data, error } = await supabase
       .from("clients")
       .select(
-        "id,dni,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at",
+        "id,dni,display_name,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at",
       )
       .eq("dni", dni)
       .maybeSingle();
@@ -318,12 +369,27 @@ export const attentionsApi = {
     throw new Error("El servicio de consulta DNI devolvió una respuesta no reconocida.");
   },
 
+  findClientsByEmail: async (email: string): Promise<Client[]> => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id,dni,display_name,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at")
+      .eq("email", normalizedEmail)
+      .order("updated_at", { ascending: false });
+    if (error?.code === "PGRST202") {
+      throw new Error("El flujo flexible de clientes no está instalado. Ejecuta el SQL 12 en Supabase.");
+    }
+    if (error) throw new Error(getErrorMessage(error));
+    return ((data || []) as DatabaseClientRow[]).map(mapClient);
+  },
+
   getNewAttentionCatalogs: async (): Promise<NewAttentionCatalogs> => {
-    const [channels, types, topics, kinships, areas] = await Promise.all([
+    const [channels, types, topics, kinships, areas, admissionProcesses] = await Promise.all([
       supabase
         .from("service_channels")
-        .select("id,name,detail,is_active,disabled_by_name,disabled_at")
+        .select("id,name,detail,category,is_active,disabled_by_name,disabled_at")
         .eq("is_active", true)
+        .not("category", "is", null)
         .order("name"),
       supabase
         .from("consultation_types")
@@ -342,10 +408,11 @@ export const attentionsApi = {
         .select("id,name,display_order,is_active")
         .eq("is_active", true)
         .order("display_order"),
-      supabase.from("areas").select("id,name").order("name"),
+      supabase.from("areas").select("id,name,group_email").order("name"),
+      supabase.from("admission_processes").select("id,phase,custom_label,year,is_active,created_at,updated_at").eq("is_active", true).order("year", { ascending: false }),
     ]);
 
-    const firstError = [channels, types, topics, kinships, areas].find(
+    const firstError = [channels, types, topics, kinships, areas, admissionProcesses].find(
       (result) => result.error,
     )?.error;
     if (firstError) throw new Error(getErrorMessage(firstError));
@@ -356,6 +423,7 @@ export const attentionsApi = {
           id: row.id,
           name: row.name,
           detail: row.detail,
+          category: row.category as ServiceChannel["category"],
           isActive: row.is_active,
           disabledByName: row.disabled_by_name,
           disabledAt: row.disabled_at,
@@ -387,37 +455,43 @@ export const attentionsApi = {
         }),
       ),
       areas: (areas.data || []).map(
-        (row): Area => ({ id: row.id, name: row.name }),
+        (row): Area => ({ id: row.id, name: row.name, groupEmail: row.group_email }),
       ),
+      admissionProcesses: (admissionProcesses.data || []).map(mapAdmissionProcess),
     };
   },
 
   getEditAttentionCatalogs: async (): Promise<NewAttentionCatalogs> => {
-    const [channels, types, topics, kinships, areas] = await Promise.all([
-      supabase.from("service_channels").select("id,name,detail,is_active,disabled_by_name,disabled_at").order("name"),
+    const [channels, types, topics, kinships, areas, admissionProcesses] = await Promise.all([
+      supabase.from("service_channels").select("id,name,detail,category,is_active,disabled_by_name,disabled_at").order("name"),
       supabase.from("consultation_types").select("id,name,display_order,is_active").order("display_order"),
       supabase.from("consultation_topics").select("id,consultation_type_id,name,display_order,is_active").order("display_order"),
       supabase.from("kinship_types").select("id,name,display_order,is_active").order("display_order"),
-      supabase.from("areas").select("id,name").order("name"),
+      supabase.from("areas").select("id,name,group_email").order("name"),
+      supabase.from("admission_processes").select("id,phase,custom_label,year,is_active,created_at,updated_at").order("year", { ascending: false }),
     ]);
-    const firstError = [channels, types, topics, kinships, areas].find((result) => result.error)?.error;
+    const firstError = [channels, types, topics, kinships, areas, admissionProcesses].find((result) => result.error)?.error;
     if (firstError) throw new Error(getErrorMessage(firstError));
 
     return {
-      serviceChannels: (channels.data || []).map((row) => ({ id: row.id, name: row.name, detail: row.detail, isActive: row.is_active, disabledByName: row.disabled_by_name, disabledAt: row.disabled_at })),
+      serviceChannels: (channels.data || []).map((row) => ({ id: row.id, name: row.name, detail: row.detail, category: row.category as ServiceChannel["category"], isActive: row.is_active, disabledByName: row.disabled_by_name, disabledAt: row.disabled_at })),
       consultationTypes: (types.data || []).map((row) => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
       consultationTopics: (topics.data || []).map((row) => ({ id: row.id, consultationTypeId: row.consultation_type_id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
       kinshipTypes: (kinships.data || []).map((row) => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
-      areas: (areas.data || []).map((row) => ({ id: row.id, name: row.name })),
+      areas: (areas.data || []).map((row) => ({ id: row.id, name: row.name, groupEmail: row.group_email })),
+      admissionProcesses: (admissionProcesses.data || []).map(mapAdmissionProcess),
     };
   },
 
   create: async (
     values: CreateCustomerAttentionInput,
   ): Promise<CreatedCustomerAttention> => {
-    const { data, error } = await supabase.rpc("create_customer_attention", {
+    const { data, error } = await supabase.rpc("create_customer_attention_v3", {
       p_client: {
-        dni: values.client.dni,
+        id: values.client.id || null,
+        create_new: values.client.createNew === true,
+        dni: values.client.dni || null,
+        display_name: values.client.displayName,
         first_name: values.client.firstName,
         middle_name: values.client.middleName || null,
         paternal_surname: values.client.paternalSurname,
@@ -430,12 +504,16 @@ export const attentionsApi = {
       p_conclusion: values.conclusion.trim(),
       p_topics: values.topics.map((topic) => ({ topic_id: topic.topicId })),
       p_client_contact_email: values.client.email || null,
+      p_admission_process_ids: values.admissionProcessIds,
       p_kinship_type_id: values.kinshipTypeId || null,
       p_destination_area_id: values.destinationAreaId || null,
       p_requester_detail: values.requesterDetail || null,
       p_kinship_detail: values.kinshipDetail || null,
     });
 
+    if (error?.code === "PGRST202") {
+      throw new Error("Las etiquetas de procesos no están instaladas. Ejecuta el SQL 13 en Supabase.");
+    }
     if (error) throw new Error(getErrorMessage(error));
 
     const result = data as { id?: unknown; rac_code?: unknown } | null;
@@ -447,9 +525,11 @@ export const attentionsApi = {
   },
 
   update: async (values: UpdateCustomerAttentionInput): Promise<void> => {
-    const { error } = await supabase.rpc("update_customer_attention", {
+    const { error } = await supabase.rpc("update_customer_attention_v3", {
       p_attention_id: values.id,
       p_client: {
+        dni: values.client.dni || null,
+        display_name: values.client.displayName,
         first_name: values.client.firstName,
         middle_name: values.client.middleName || null,
         paternal_surname: values.client.paternalSurname,
@@ -461,11 +541,15 @@ export const attentionsApi = {
       p_requester_type: values.requesterType,
       p_conclusion: values.conclusion.trim(),
       p_topics: values.topics.map((topic) => ({ topic_id: topic.topicId })),
+      p_admission_process_ids: values.admissionProcessIds,
       p_kinship_type_id: values.kinshipTypeId || null,
       p_destination_area_id: values.destinationAreaId || null,
       p_requester_detail: values.requesterDetail || null,
       p_kinship_detail: values.kinshipDetail || null,
     });
+    if (error?.code === "PGRST202") {
+      throw new Error("Las etiquetas de procesos no están instaladas. Ejecuta el SQL 13 en Supabase.");
+    }
     if (error) throw new Error(getErrorMessage(error));
   },
 

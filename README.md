@@ -34,17 +34,54 @@ Ejecuta en SQL Editor, en este orden:
 6. `supabase/sql/07_referral_notifications_badge.sql`
 7. `supabase/sql/08_attention_email_surveys.sql`
 8. `supabase/sql/09_referral_resolution_email_survey.sql`
-9. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
+9. `supabase/sql/10_area_group_referral_email.sql`
+10. `supabase/sql/11_attention_registration_access.sql`
+11. `supabase/sql/12_service_channel_client_identity.sql`
+12. `supabase/sql/13_admission_processes.sql`
+13. `supabase/sql/14_dashboard_statistics.sql`
+14. `supabase/sql/15_dashboard_attention_trend.sql`
+15. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
 
 Después configura el hook de invitaciones, OAuth y Realtime siguiendo `SUPABASE_WORKSTATIONS_SETUP.md`.
 
 ## Base existente
 
-Si la base ya tiene instalados los módulos anteriores, ejecuta una sola vez:
+Si la base ya tiene instalados los módulos anteriores, ejecuta las migraciones
+pendientes en orden. Para el correo grupal de áreas ejecuta una sola vez:
 
-`supabase/migrations/20261002000000_workstations_surveys_referral_inbox.sql`
+`supabase/migrations/20261026000000_area_group_referral_email.sql`
 
-No ejecutes simultáneamente el archivo de migración y el SQL `04`: contienen la misma ampliación.
+No ejecutes simultáneamente esa migración y el SQL `10`: contienen la misma ampliación.
+
+Para habilitar la verificación previa de mesa al registrar atenciones, ejecuta una sola vez:
+
+`supabase/migrations/20261026010000_attention_registration_access.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `11`: contienen la misma ampliación.
+
+Para clasificar los medios y admitir clientes de correo sin DNI, ejecuta una sola vez:
+
+`supabase/migrations/20261026020000_service_channel_client_identity.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `12`: contienen la misma ampliación. Después clasifica cualquier medio activo existente y vuelve a desplegar la función `dni-lookup`.
+
+Para agregar el catálogo de procesos y sus etiquetas en las atenciones, ejecuta una sola vez:
+
+`supabase/migrations/20261026030000_admission_processes.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `13`: contienen la misma ampliación.
+
+Para habilitar el Dashboard estadístico agregado, ejecuta una sola vez:
+
+`supabase/migrations/20261026040000_dashboard_statistics.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `14`: contienen la misma ampliación.
+
+Para agregar la serie temporal diaria o mensual al Dashboard, ejecuta una sola vez:
+
+`supabase/migrations/20261026050000_dashboard_attention_trend.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `15`: contienen la misma ampliación.
 
 Para instalar y desplegar el servicio de correo consulta `MAIL_SERVICE_SETUP.md`.
 
@@ -55,3 +92,20 @@ Para activar los avisos y el contador de derivaciones consulta `REFERRAL_NOTIFIC
 Para habilitar las encuestas de atención por correo consulta `ATTENTION_EMAIL_SURVEY_SETUP.md`.
 
 Para habilitar el correo de resolución y la encuesta independiente de derivaciones consulta `REFERRAL_RESOLUTION_SURVEY_SETUP.md`.
+
+## Reinicio de datos para producción
+
+Después de instalar y verificar todas las ampliaciones, el archivo
+`supabase/sql/reset_application_data_keep_admin_and_catalogs.sql` permite
+vaciar los datos de prueba. Debe ejecutarse manualmente y una sola vez desde
+el SQL Editor de Supabase con una copia de seguridad previa.
+
+El script conserva únicamente al usuario `csullcap@unsa.edu.pe`, su perfil y
+rol de administrador, además de los catálogos de roles, tipos, temas y
+parentescos. Elimina los demás usuarios de `auth.users`, invitaciones, áreas,
+medios, procesos de admisión, clientes, mesas, atenciones, derivaciones,
+encuestas, colas de correo y registros de consulta de DNI.
+
+Antes de borrar, verifica que el administrador exista y posea el rol `ADMIN`.
+También valida el resultado antes de confirmar la transacción; si alguna
+condición no se cumple, se revierte toda la operación.

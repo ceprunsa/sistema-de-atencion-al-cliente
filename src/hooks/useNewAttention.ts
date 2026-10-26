@@ -11,6 +11,10 @@ export const useNewAttention = () => {
     mutationFn: attentionsApi.findClientByDni,
   });
 
+  const emailClientsMutation = useMutation({
+    mutationFn: attentionsApi.findClientsByEmail,
+  });
+
   const createMutation = useMutation({
     mutationFn: attentionsApi.create,
   });
@@ -21,6 +25,8 @@ export const useNewAttention = () => {
     isErrorCatalogs: catalogsQuery.isError,
     findClient: clientMutation.mutateAsync,
     isSearchingClient: clientMutation.isPending,
+    findClientsByEmail: emailClientsMutation.mutateAsync,
+    isSearchingClientsByEmail: emailClientsMutation.isPending,
     createAttention: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
   };

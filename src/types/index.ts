@@ -8,6 +8,7 @@ export interface Role {
 export interface Area {
   id: string;
   name: string;
+  groupEmail: string | null;
 }
 
 export type AttentionRequesterType = "APPLICANT" | "RELATIVE" | "OTHER";
@@ -27,6 +28,34 @@ export type SurveyResponse =
   | "VERY_DISSATISFIED";
 export type SurveyChannel = "UNDECIDED" | "TABLET" | "EMAIL";
 export type ReferralStatus = "NONE" | "PENDING" | "RESOLVED" | "DISABLED" | "CANCELLED";
+export type ServiceChannelCategory = "IN_PERSON" | "PHONE" | "EMAIL";
+export type AdmissionProcessPhase =
+  | "CEPRUNSA_I"
+  | "CEPRUNSA_QUINTOS"
+  | "CEPRUNSA_II"
+  | "EXTRAORDINARIO"
+  | "CUSTOM";
+
+export interface AdmissionProcess {
+  id: string;
+  phase: AdmissionProcessPhase;
+  customLabel: string | null;
+  year: number;
+  isActive: boolean;
+}
+export type AttentionRegistrationBlockReason =
+  | "NO_SESSION"
+  | "INACTIVE_PROFILE"
+  | "TABLET_SESSION"
+  | "NO_ACTIVE_WORKSTATION"
+  | "PENDING_SURVEY";
+
+export interface AttentionRegistrationState {
+  allowed: boolean;
+  reason: AttentionRegistrationBlockReason | null;
+  workstationId: string | null;
+  workstationName: string | null;
+}
 
 export interface Workstation {
   id: string;
@@ -66,11 +95,12 @@ export interface AttentionSurvey {
 
 export interface Client {
   id: string;
-  dni: string;
-  firstName: string;
+  dni: string | null;
+  displayName: string;
+  firstName: string | null;
   middleName: string | null;
-  paternalSurname: string;
-  maternalSurname: string;
+  paternalSurname: string | null;
+  maternalSurname: string | null;
   email: string | null;
   phone: string | null;
   createdAt: string;
@@ -94,6 +124,7 @@ export interface ServiceChannel {
   id: string;
   name: string;
   detail: string;
+  category: ServiceChannelCategory | null;
   isActive: boolean;
   disabledByName: string | null;
   disabledAt: string | null;
@@ -193,11 +224,14 @@ export interface CustomerAttention {
 
 export interface CreateCustomerAttentionInput {
   client: {
-    dni: string;
-    firstName?: string;
+    id?: string | null;
+    createNew?: boolean;
+    dni?: string | null;
+    displayName: string;
+    firstName?: string | null;
     middleName?: string | null;
-    paternalSurname?: string;
-    maternalSurname?: string;
+    paternalSurname?: string | null;
+    maternalSurname?: string | null;
     email?: string | null;
     phone?: string | null;
   };
@@ -209,6 +243,7 @@ export interface CreateCustomerAttentionInput {
   conclusion: string;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
+  admissionProcessIds: string[];
 }
 
 export interface NewAttentionCatalogs {
@@ -217,6 +252,7 @@ export interface NewAttentionCatalogs {
   consultationTopics: ConsultationTopic[];
   kinshipTypes: KinshipType[];
   areas: Area[];
+  admissionProcesses: AdmissionProcess[];
 }
 
 export interface CreatedCustomerAttention {
@@ -227,10 +263,12 @@ export interface CreatedCustomerAttention {
 export interface UpdateCustomerAttentionInput {
   id: string;
   client: {
-    firstName: string;
+    dni?: string | null;
+    displayName: string;
+    firstName?: string | null;
     middleName?: string | null;
-    paternalSurname: string;
-    maternalSurname: string;
+    paternalSurname?: string | null;
+    maternalSurname?: string | null;
     email?: string | null;
     phone?: string | null;
   };
@@ -242,6 +280,7 @@ export interface UpdateCustomerAttentionInput {
   conclusion: string;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
+  admissionProcessIds: string[];
 }
 
 export interface AttentionListItem {
@@ -249,7 +288,7 @@ export interface AttentionListItem {
   racCode: string;
   status: CustomerAttentionStatus;
   requesterType: AttentionRequesterType;
-  clientDni: string;
+  clientDni: string | null;
   clientName: string;
   serviceChannelName: string;
   createdByName: string;
@@ -273,13 +312,14 @@ export interface CustomerAttentionDetail extends CustomerAttention {
   topics: AttentionTopicDetail[];
   referral: AttentionReferral | null;
   survey: AttentionSurvey | null;
+  admissionProcesses: AdmissionProcess[];
 }
 
 export interface ReferralInboxItem {
   id: string;
   attentionId: string;
   racCode: string;
-  clientDni: string;
+  clientDni: string | null;
   clientName: string;
   destinationAreaId: string;
   destinationAreaName: string;
@@ -360,6 +400,41 @@ export interface PaginationState {
   limit: number;
   totalPages: number;
   total: number;
+}
+
+export interface DashboardBreakdownItem {
+  key: string;
+  label: string;
+  count: number;
+  category?: string | null;
+}
+
+export interface DashboardSurveySummary {
+  kind: "ATTENTION" | "REFERRAL";
+  completed: number;
+  skipped: number;
+  pending: number;
+  cancelled: number;
+}
+
+export interface DashboardStatistics {
+  scope: "GLOBAL" | "OWN";
+  dateFrom: string;
+  dateTo: string;
+  activeAttentionsOnly: boolean;
+  totalAttentions: number;
+  referrals: { total: number; pending: number; resolved: number };
+  satisfaction: {
+    validResponses: number;
+    score: number | null;
+    responses: DashboardBreakdownItem[];
+  };
+  byChannel: DashboardBreakdownItem[];
+  byWorkstation: DashboardBreakdownItem[];
+  byAdmissionProcess: DashboardBreakdownItem[];
+  surveys: DashboardSurveySummary[];
+  trendGranularity: "DAY" | "MONTH";
+  attentionTrend: DashboardBreakdownItem[];
 }
 
 // ─── Tipo de retorno del hook useUsers ───────────────────────

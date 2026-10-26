@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { areasApi } from "../api/areas";
+import { areasApi, type AreaInput } from "../api/areas";
 
 const AREAS_QUERY_KEY = ["areas"] as const;
 
@@ -12,14 +12,14 @@ export const useAreas = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => areasApi.create(name),
+    mutationFn: (values: AreaInput) => areasApi.create(values),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: AREAS_QUERY_KEY }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) =>
-      areasApi.update(id, name),
+    mutationFn: ({ id, values }: { id: string; values: AreaInput }) =>
+      areasApi.update(id, values),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: AREAS_QUERY_KEY }),
   });

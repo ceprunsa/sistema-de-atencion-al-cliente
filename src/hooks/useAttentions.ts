@@ -11,10 +11,11 @@ export const useAttentions = () => {
   const [surveyStatus, setSurveyStatusValue] = useState("");
   const [referralStatus, setReferralStatusValue] = useState("");
   const [areaId, setAreaIdValue] = useState("");
+  const [admissionProcessId, setAdmissionProcessIdValue] = useState("");
 
   const query = useQuery({
-    queryKey: ["attentions", "list", page, limit, search, surveyStatus, referralStatus, areaId],
-    queryFn: () => attentionsApi.list(page, limit, search, surveyStatus, referralStatus, areaId),
+    queryKey: ["attentions", "list", page, limit, search, surveyStatus, referralStatus, areaId, admissionProcessId],
+    queryFn: () => attentionsApi.list(page, limit, search, surveyStatus, referralStatus, areaId, admissionProcessId),
     placeholderData: keepPreviousData,
   });
 
@@ -34,6 +35,7 @@ export const useAttentions = () => {
     surveyStatus,
     referralStatus,
     areaId,
+    admissionProcessId,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,
@@ -50,6 +52,7 @@ export const useAttentions = () => {
     setSurveyStatus: (value: string) => { setSurveyStatusValue(value); setPage(1); },
     setReferralStatus: (value: string) => { setReferralStatusValue(value); setPage(1); },
     setAreaId: (value: string) => { setAreaIdValue(value); setPage(1); },
+    setAdmissionProcessId: (value: string) => { setAdmissionProcessIdValue(value); setPage(1); },
   };
 };
 

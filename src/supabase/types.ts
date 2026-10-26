@@ -9,29 +9,69 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      admission_processes: {
+        Row: {
+          id: string;
+          phase: string;
+          custom_label: string | null;
+          year: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          phase: string;
+          custom_label?: string | null;
+          year: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          phase?: string;
+          custom_label?: string | null;
+          year?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      attention_admission_processes: {
+        Row: { attention_id: string; admission_process_id: string };
+        Insert: { attention_id: string; admission_process_id: string };
+        Update: { attention_id?: string; admission_process_id?: string };
+        Relationships: [];
+      };
       areas: {
         Row: {
           id: string;
           name: string;
+          group_email: string | null;
         };
         Insert: {
           id?: string;
           name: string;
+          group_email: string;
         };
         Update: {
           id?: string;
           name?: string;
+          group_email?: string;
         };
         Relationships: [];
       };
       clients: {
         Row: {
           id: string;
-          dni: string;
-          first_name: string;
+          dni: string | null;
+          display_name: string;
+          first_name: string | null;
           middle_name: string | null;
-          paternal_surname: string;
-          maternal_surname: string;
+          paternal_surname: string | null;
+          maternal_surname: string | null;
           email: string | null;
           phone: string | null;
           created_by: string | null;
@@ -40,11 +80,12 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          dni: string;
-          first_name: string;
+          dni?: string | null;
+          display_name: string;
+          first_name?: string | null;
           middle_name?: string | null;
-          paternal_surname: string;
-          maternal_surname: string;
+          paternal_surname?: string | null;
+          maternal_surname?: string | null;
           email?: string | null;
           phone?: string | null;
           created_by?: string | null;
@@ -53,11 +94,12 @@ export interface Database {
         };
         Update: {
           id?: string;
-          dni?: string;
-          first_name?: string;
+          dni?: string | null;
+          display_name?: string;
+          first_name?: string | null;
           middle_name?: string | null;
-          paternal_surname?: string;
-          maternal_surname?: string;
+          paternal_surname?: string | null;
+          maternal_surname?: string | null;
           email?: string | null;
           phone?: string | null;
           created_by?: string | null;
@@ -142,6 +184,7 @@ export interface Database {
           id: string;
           name: string;
           detail: string;
+          category: string | null;
           is_active: boolean;
           disabled_by: string | null;
           disabled_by_name: string | null;
@@ -153,6 +196,7 @@ export interface Database {
           id?: string;
           name: string;
           detail: string;
+          category: string;
           is_active?: boolean;
           disabled_by?: string | null;
           disabled_by_name?: string | null;
@@ -164,6 +208,7 @@ export interface Database {
           id?: string;
           name?: string;
           detail?: string;
+          category?: string;
           is_active?: boolean;
           disabled_by?: string | null;
           disabled_by_name?: string | null;
@@ -764,6 +809,58 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      get_dashboard_statistics: {
+        Args: {
+          p_date_from: string;
+          p_date_to: string;
+          p_admission_process_id?: string | null;
+        };
+        Returns: Json;
+      };
+      get_dashboard_statistics_v2: {
+        Args: {
+          p_date_from: string;
+          p_date_to: string;
+          p_admission_process_id?: string | null;
+        };
+        Returns: Json;
+      };
+      create_customer_attention_v3: {
+        Args: {
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_client_contact_email: string | null;
+          p_admission_process_ids: Json;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+        };
+        Returns: Json;
+      };
+      update_customer_attention_v3: {
+        Args: {
+          p_attention_id: string;
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_admission_process_ids: Json;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+        };
+        Returns: void;
+      };
+      get_my_attention_registration_state: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       accept_user_invitation: {
         Args: {
           p_account_name: string | null;
@@ -785,6 +882,36 @@ export interface Database {
           p_kinship_detail?: string | null;
         };
         Returns: Json;
+      };
+      create_customer_attention_v2: {
+        Args: {
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_client_contact_email: string | null;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+        };
+        Returns: Json;
+      };
+      update_customer_attention_v2: {
+        Args: {
+          p_attention_id: string;
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+        };
+        Returns: void;
       };
       consume_dni_lookup_rate_limit: {
         Args: { p_user_id: string; p_origin_hash: string };
@@ -859,7 +986,7 @@ export interface Database {
       list_referral_inbox: {
         Args: { p_page?: number; p_limit?: number; p_search?: string; p_area_id?: string | null };
         Returns: Array<{
-          id: string; attention_id: string; rac_code: string; client_dni: string; client_name: string;
+          id: string; attention_id: string; rac_code: string; client_dni: string | null; client_name: string;
           destination_area_id: string; destination_area_name: string; referred_by_name: string;
           referred_at: string; total_count: number;
         }>;
@@ -871,7 +998,20 @@ export interface Database {
         };
         Returns: Array<{
           id: string; rac_code: string; attention_status: string; requester_type: string;
-          client_dni: string; client_name: string; service_channel_name: string;
+          client_dni: string | null; client_name: string; service_channel_name: string;
+          created_by_name: string; created_at: string; survey_status: string;
+          referral_status: string; referral_area_id: string | null; referral_area_name: string | null;
+          total_count: number;
+        }>;
+      };
+      list_customer_attentions_v3: {
+        Args: {
+          p_page?: number; p_limit?: number; p_search?: string; p_survey_status?: string | null;
+          p_referral_status?: string | null; p_area_id?: string | null; p_admission_process_id?: string | null;
+        };
+        Returns: Array<{
+          id: string; rac_code: string; attention_status: string; requester_type: string;
+          client_dni: string | null; client_name: string; service_channel_name: string;
           created_by_name: string; created_at: string; survey_status: string;
           referral_status: string; referral_area_id: string | null; referral_area_name: string | null;
           total_count: number;

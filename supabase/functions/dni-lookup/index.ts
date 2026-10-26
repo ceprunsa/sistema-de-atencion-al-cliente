@@ -78,7 +78,7 @@ Deno.serve(async (request) => {
 
   const { data: localClient, error: localError } = await admin
     .from("clients")
-    .select("id,dni,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at")
+    .select("id,dni,display_name,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at")
     .eq("dni", dni)
     .maybeSingle();
   if (localError) return json({ code: "LOCAL_LOOKUP_ERROR", message: "No se pudo consultar la base de clientes." }, 500);

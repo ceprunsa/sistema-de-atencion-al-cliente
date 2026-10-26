@@ -1,10 +1,11 @@
 import { supabase } from "../supabase/config";
-import type { ServiceChannel } from "../types";
+import type { ServiceChannel, ServiceChannelCategory } from "../types";
 
 type ServiceChannelRow = {
   id: string;
   name: string;
   detail: string;
+  category: ServiceChannelCategory | null;
   is_active: boolean;
   disabled_by_name: string | null;
   disabled_at: string | null;
@@ -13,12 +14,14 @@ type ServiceChannelRow = {
 export interface ServiceChannelInput {
   name: string;
   detail: string;
+  category: ServiceChannelCategory;
 }
 
 const mapServiceChannel = (row: ServiceChannelRow): ServiceChannel => ({
   id: row.id,
   name: row.name,
   detail: row.detail,
+  category: row.category,
   isActive: row.is_active,
   disabledByName: row.disabled_by_name,
   disabledAt: row.disabled_at,
@@ -33,7 +36,7 @@ const throwServiceChannelError = (error: {
   }
 
   if (error.code === "23514") {
-    throw new Error("El nombre y el detalle del medio son obligatorios.");
+    throw new Error("El nombre, el detalle y una categoría válida son obligatorios.");
   }
 
   throw new Error(error.message || "No se pudo completar la operación.");
@@ -44,7 +47,7 @@ export const serviceChannelsApi = {
     const { data, error } = await supabase
       .from("service_channels")
       .select(
-        "id,name,detail,is_active,disabled_by_name,disabled_at",
+        "id,name,detail,category,is_active,disabled_by_name,disabled_at",
       )
       .order("is_active", { ascending: false })
       .order("name", { ascending: true });
@@ -59,8 +62,9 @@ export const serviceChannelsApi = {
       .insert({
         name: values.name.trim(),
         detail: values.detail.trim(),
+        category: values.category,
       })
-      .select("id,name,detail,is_active,disabled_by_name,disabled_at")
+      .select("id,name,detail,category,is_active,disabled_by_name,disabled_at")
       .single();
 
     if (error) throwServiceChannelError(error);
@@ -76,9 +80,10 @@ export const serviceChannelsApi = {
       .update({
         name: values.name.trim(),
         detail: values.detail.trim(),
+        category: values.category,
       })
       .eq("id", id)
-      .select("id,name,detail,is_active,disabled_by_name,disabled_at")
+      .select("id,name,detail,category,is_active,disabled_by_name,disabled_at")
       .single();
 
     if (error) throwServiceChannelError(error);

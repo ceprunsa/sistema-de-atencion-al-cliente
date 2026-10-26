@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../hooks/useAuth";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
 import { formatLocalDate } from "../utils/dateUtils";
+import { formatAdmissionProcess } from "../utils/admissionProcesses";
 
 const AttentionDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,7 +33,7 @@ const AttentionDetail = () => {
     );
   }
 
-  const clientName = [attention.client.firstName, attention.client.middleName, attention.client.paternalSurname, attention.client.maternalSurname].filter(Boolean).join(" ");
+  const clientName = attention.client.displayName;
   const requesterLabel =
     attention.requesterType === "APPLICANT"
       ? "Postulante"
@@ -123,8 +124,8 @@ const AttentionDetail = () => {
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center gap-2"><UserRound size={20} className="text-[#1A2855]" /><h2 className="font-semibold text-gray-900">Cliente</h2></div>
           <dl className="space-y-3 text-sm">
-            <div><dt className="text-gray-500">Nombre completo</dt><dd className="font-medium text-gray-900">{clientName}</dd></div>
-            <div><dt className="text-gray-500">DNI</dt><dd className="text-gray-800">{attention.client.dni}</dd></div>
+            <div><dt className="text-gray-500">Nombre o denominación</dt><dd className="font-medium text-gray-900">{clientName}</dd></div>
+            <div><dt className="text-gray-500">DNI</dt><dd className="text-gray-800">{attention.client.dni || "No registrado"}</dd></div>
             <div><dt className="text-gray-500">Correo</dt><dd className="text-gray-800">{attention.client.email || "No registrado"}</dd></div>
             <div><dt className="text-gray-500">Teléfono</dt><dd className="text-gray-800">{attention.client.phone || "No registrado"}</dd></div>
             <div><dt className="text-gray-500">Persona que consulta</dt><dd className="text-gray-800">{requesterLabel}</dd></div>
@@ -151,6 +152,11 @@ const AttentionDetail = () => {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-900">Procesos de admisión</h2>
+        {attention.admissionProcesses.length === 0 ? <p className="mt-3 text-sm text-gray-500">Sin procesos asociados.</p> : <div className="mt-4 flex flex-wrap gap-2">{attention.admissionProcesses.map((process) => <span key={process.id} className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800">{formatAdmissionProcess(process)}</span>)}</div>}
       </section>
 
       <section className="mt-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">

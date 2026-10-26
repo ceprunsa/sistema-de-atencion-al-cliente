@@ -1,19 +1,29 @@
 import { useState, type FormEvent } from "react";
 import { Eye, Loader2, Plus, Search, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import Pagination from "../components/Pagination";
 import { useAttentions } from "../hooks/useAttentions";
 import { formatLocalDate } from "../utils/dateUtils";
 import { useAuth } from "../hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { areasApi } from "../api/areas";
+import { useAdmissionProcesses } from "../hooks/useAdmissionProcesses";
+import { formatAdmissionProcess } from "../utils/admissionProcesses";
+import {
+  getAttentionRegistrationMessage,
+  useAttentionRegistrationAccess,
+} from "../hooks/useAttentionRegistrationAccess";
 
 const surveyLabels: Record<string, string> = { NONE: "Sin encuesta", PENDING_DECISION: "Encuesta por decidir", QUEUED: "Encuesta en cola", SENT: "Encuesta enviada", COMPLETED: "Encuesta completada", SKIPPED: "Encuesta omitida", CANCELLED: "Encuesta cancelada" };
 const referralLabels: Record<string, string> = { NONE: "Sin derivación", PENDING: "Derivación pendiente", RESOLVED: "Derivación resuelta", DISABLED: "Derivación inhabilitada", CANCELLED: "Derivación cancelada" };
 
 const Attentions = () => {
+  const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const registrationAccess = useAttentionRegistrationAccess();
   const areas = useQuery({ queryKey: ["areas", "attention-filter"], queryFn: areasApi.list, enabled: isAdmin });
+  const admissionProcesses = useAdmissionProcesses();
   const {
     attentions,
     pagination,
@@ -28,9 +38,11 @@ const Attentions = () => {
     surveyStatus,
     referralStatus,
     areaId,
+    admissionProcessId,
     setSurveyStatus,
     setReferralStatus,
     setAreaId,
+    setAdmissionProcessId,
   } = useAttentions();
   const [searchInput, setSearchInput] = useState(search);
 
@@ -44,26 +56,47 @@ const Attentions = () => {
     setSearch("");
   };
 
+  const handleNewAttention = () => {
+    if (registrationAccess.isLoading) return;
+    if (registrationAccess.isError) {
+      toast.error("No se pudo verificar tu mesa de trabajo. Intenta nuevamente.");
+      void registrationAccess.refetch();
+      return;
+    }
+    if (registrationAccess.data?.allowed || registrationAccess.data?.reason === "PENDING_SURVEY") {
+      navigate("/attentions/new");
+      return;
+    }
+    toast.error(getAttentionRegistrationMessage(registrationAccess.data?.reason));
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Atenciones</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Consulta el historial por código RAC o DNI del cliente.
+            Consulta el historial por código RAC, DNI, nombre o correo del cliente.
           </p>
         </div>
-        <Link to="/attentions/new" className="btn btn-primary inline-flex items-center justify-center">
-          <Plus size={18} className="mr-2" />
+        <button
+          type="button"
+          onClick={handleNewAttention}
+          disabled={registrationAccess.isLoading}
+          className="btn btn-primary inline-flex items-center justify-center disabled:cursor-wait disabled:opacity-60"
+        >
+          {registrationAccess.isLoading
+            ? <Loader2 size={18} className="mr-2 animate-spin" />
+            : <Plus size={18} className="mr-2" />}
           Nueva atención
-        </Link>
+        </button>
       </div>
 
       <form onSubmit={handleSearch} className="mb-5 rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
         <label htmlFor="attentionSearch" className="block text-sm font-medium text-gray-700">
           Buscar atención
         </label>
-        <div className="mt-1 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_190px_190px_190px_auto]">
+        <div className="mt-1 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_180px_180px_190px_190px_auto]">
           <div className="relative flex-1">
             <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -82,6 +115,7 @@ const Attentions = () => {
           </div>
           <select value={surveyStatus} onChange={(event) => setSurveyStatus(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las encuestas</option>{Object.entries(surveyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <select value={referralStatus} onChange={(event) => setReferralStatus(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las derivaciones</option>{Object.entries(referralLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <select value={admissionProcessId} onChange={(event) => setAdmissionProcessId(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todos los procesos</option>{admissionProcesses.processes.map((process) => <option key={process.id} value={process.id}>{formatAdmissionProcess(process)}</option>)}</select>
           {isAdmin ? <select value={areaId} onChange={(event) => setAreaId(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las áreas</option>{(areas.data || []).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select> : <div className="hidden lg:block" />}
           <button type="submit" className="btn btn-secondary inline-flex items-center justify-center">
             <Search size={17} className="mr-2" />
@@ -126,7 +160,7 @@ const Attentions = () => {
                 </div>
                 <div className="mt-2 lg:col-span-3 lg:mt-0">
                   <p className="text-sm font-medium text-gray-900">{attention.clientName}</p>
-                  <p className="text-xs text-gray-500">DNI {attention.clientDni}</p>
+                  <p className="text-xs text-gray-500">{attention.clientDni ? `DNI ${attention.clientDni}` : "Sin DNI"}</p>
                 </div>
                 <div className="mt-2 text-sm text-gray-600 lg:col-span-2 lg:mt-0">{attention.serviceChannelName}</div>
                 <div className="mt-2 lg:col-span-2 lg:mt-0">

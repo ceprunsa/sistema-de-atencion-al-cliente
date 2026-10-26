@@ -8,6 +8,8 @@ import type { Area } from "../types";
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación.";
 
+const GROUP_EMAIL_PATTERN = /^[^\s@]+@cepr\.unsa\.pe$/i;
+
 const Areas = () => {
   const {
     areas,
@@ -20,6 +22,7 @@ const Areas = () => {
     isDeleting,
   } = useAreas();
   const [name, setName] = useState("");
+  const [groupEmail, setGroupEmail] = useState("");
   const [editingArea, setEditingArea] = useState<Area | null>(null);
   const [areaToDelete, setAreaToDelete] = useState<Area | null>(null);
 
@@ -30,16 +33,25 @@ const Areas = () => {
       toast.error("El nombre del área es obligatorio.");
       return;
     }
+    const normalizedGroupEmail = groupEmail.trim().toLowerCase();
+    if (!GROUP_EMAIL_PATTERN.test(normalizedGroupEmail)) {
+      toast.error("Ingresa un correo de grupo válido con dominio @cepr.unsa.pe.");
+      return;
+    }
 
     try {
       if (editingArea) {
-        await updateArea({ id: editingArea.id, name: normalizedName });
+        await updateArea({
+          id: editingArea.id,
+          values: { name: normalizedName, groupEmail: normalizedGroupEmail },
+        });
         toast.success("Área actualizada.");
       } else {
-        await createArea(normalizedName);
+        await createArea({ name: normalizedName, groupEmail: normalizedGroupEmail });
         toast.success("Área creada.");
       }
       setName("");
+      setGroupEmail("");
       setEditingArea(null);
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -61,11 +73,13 @@ const Areas = () => {
   const startEditing = (area: Area) => {
     setEditingArea(area);
     setName(area.name);
+    setGroupEmail(area.groupEmail || "");
   };
 
   const cancelEditing = () => {
     setEditingArea(null);
     setName("");
+    setGroupEmail("");
   };
 
   return (
@@ -78,21 +92,40 @@ const Areas = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="mb-6 bg-white border border-gray-100 shadow rounded-lg p-5">
-        <label htmlFor="areaName" className="block text-sm font-medium text-gray-700">
-          {editingArea ? "Editar nombre del área" : "Nueva área"}
-        </label>
-        <div className="mt-2 flex flex-col sm:flex-row gap-3">
-          <input
-            id="areaName"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={120}
-            required
-            autoFocus={!!editingArea}
-            placeholder="Ej. Administración"
-            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          />
-          <div className="flex gap-2">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label htmlFor="areaName" className="block text-sm font-medium text-gray-700">
+              {editingArea ? "Nombre del área" : "Nueva área"}
+            </label>
+            <input
+              id="areaName"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={120}
+              required
+              autoFocus={!!editingArea}
+              placeholder="Ej. Administración"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="areaGroupEmail" className="block text-sm font-medium text-gray-700">
+              Correo de grupo Google *
+            </label>
+            <input
+              id="areaGroupEmail"
+              type="email"
+              value={groupEmail}
+              onChange={(event) => setGroupEmail(event.target.value)}
+              maxLength={254}
+              required
+              placeholder="grupo@cepr.unsa.pe"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">Debe ser único y terminar en @cepr.unsa.pe.</p>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
             {editingArea && (
               <button type="button" onClick={cancelEditing} className="btn btn-secondary inline-flex items-center">
                 <X size={17} className="mr-1" /> Cancelar
@@ -102,7 +135,6 @@ const Areas = () => {
               <Plus size={17} className="mr-1" />
               {isSaving ? "Guardando..." : editingArea ? "Actualizar" : "Agregar"}
             </button>
-          </div>
         </div>
       </form>
 
@@ -121,7 +153,12 @@ const Areas = () => {
                   <div className="h-9 w-9 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center mr-3">
                     <Building2 size={18} />
                   </div>
-                  <span className="font-medium text-gray-900 truncate">{area.name}</span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{area.name}</p>
+                    <p className={`mt-0.5 truncate text-sm ${area.groupEmail ? "text-gray-500" : "text-amber-700"}`}>
+                      {area.groupEmail || "Correo de grupo pendiente de configurar"}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => startEditing(area)} className="p-2 rounded-md text-blue-600 hover:bg-blue-50" title="Editar área">

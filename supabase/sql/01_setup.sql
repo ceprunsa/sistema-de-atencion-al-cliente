@@ -13,7 +13,12 @@ create table public.roles (
 
 create table public.areas (
   id uuid primary key default gen_random_uuid(),
-  name text not null check (btrim(name) <> '')
+  name text not null check (btrim(name) <> ''),
+  group_email text not null,
+  constraint areas_group_email_check check (
+    length(lower(btrim(group_email))) <= 254
+    and lower(btrim(group_email)) ~ '^[^[:space:]@]+@cepr[.]unsa[.]pe$'
+  )
 );
 
 create table public.profiles (
@@ -56,6 +61,8 @@ create table public.user_roles (
 create index profiles_email_lower_idx on public.profiles (lower(email));
 create index profiles_area_id_idx on public.profiles (area_id);
 create unique index areas_name_lower_idx on public.areas (lower(btrim(name)));
+create unique index areas_group_email_lower_uidx
+  on public.areas (lower(btrim(group_email)));
 create unique index user_invitations_email_lower_idx
   on public.user_invitations (lower(email));
 create index user_invitations_active_email_idx

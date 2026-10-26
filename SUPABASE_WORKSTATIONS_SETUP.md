@@ -20,6 +20,8 @@ El script no modifica atenciones históricas. Estas aparecerán como “Sin encu
 
 Si la migración principal ya fue ejecutada antes de la corrección del buzón, ejecuta una sola vez `supabase/migrations/20261002010000_fix_referral_inbox_ambiguity.sql`. Este script reemplaza únicamente la función `list_referral_inbox` y no cambia datos. En instalaciones nuevas no es necesario ejecutarlo por separado porque el SQL canónico ya incluye la corrección.
 
+Para que el frontend pueda comprobar la mesa antes de abrir el formulario, ejecuta después una sola vez `supabase/migrations/20261026010000_attention_registration_access.sql`. Esta migración solo agrega el RPC de lectura `get_my_attention_registration_state()`; el trigger de inserción continúa siendo la validación definitiva ante cambios concurrentes.
+
 ## 3. Crear una base nueva
 
 En un proyecto vacío ejecuta, en orden:
@@ -28,10 +30,11 @@ En un proyecto vacío ejecuta, en orden:
 2. `supabase/sql/03_customer_service.sql`.
 3. `supabase/sql/04_workstations_surveys_referral_inbox.sql`.
 4. `supabase/sql/05_email_delivery_foundation.sql`.
-5. Edita el correo y los nombres de `supabase/sql/02_bootstrap_admin.sql` y ejecútalo.
-6. Configura el hook **Before User Created** descrito en `SUPABASE_USER_LIFECYCLE.md`.
-7. Configura el servicio de correo siguiendo `MAIL_SERVICE_SETUP.md`.
-8. Ingresa por primera vez con la cuenta invitada del administrador.
+5. Ejecuta los SQL `06` a `15` en su orden numérico.
+6. Edita el correo y los nombres de `supabase/sql/02_bootstrap_admin.sql` y ejecútalo.
+7. Configura el hook **Before User Created** descrito en `SUPABASE_USER_LIFECYCLE.md`.
+8. Configura el servicio de correo siguiendo `MAIL_SERVICE_SETUP.md`.
+9. Ingresa por primera vez con la cuenta invitada del administrador.
 
 ## 4. Google OAuth y redirecciones
 
@@ -113,6 +116,8 @@ Después ejecuta:
 ```bash
 npm run verify
 ```
+
+Ejecuta también `supabase/tests/verify_attention_registration_access.sql` en SQL Editor. Sus cuatro filas deben devolver `passed = true`.
 
 ## 12. Despliegue
 

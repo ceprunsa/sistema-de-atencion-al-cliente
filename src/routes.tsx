@@ -19,6 +19,8 @@ import Workstations from "./pages/Workstations";
 import ReferralInbox from "./pages/ReferralInbox";
 import Tablet from "./pages/Tablet";
 import PublicSurvey from "./pages/PublicSurvey";
+import AttentionRegistrationRoute from "./components/AttentionRegistrationRoute";
+import AdmissionProcesses from "./pages/AdmissionProcesses";
 
 export const router = createBrowserRouter([
   {
@@ -91,6 +93,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "admission-processes",
+        element: (
+          <AdminRoute>
+            <AdmissionProcesses />
+          </AdminRoute>
+        ),
+      },
+      {
         path: "attentions",
         element: (
           <ProtectedRoute>
@@ -102,7 +112,9 @@ export const router = createBrowserRouter([
         path: "attentions/new",
         element: (
           <ProtectedRoute>
-            <NewAttention />
+            <AttentionRegistrationRoute>
+              <NewAttention />
+            </AttentionRegistrationRoute>
           </ProtectedRoute>
         ),
       },

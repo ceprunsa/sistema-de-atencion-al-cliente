@@ -134,7 +134,10 @@ El job invoca el worker cada minuto y guarda sus credenciales en Supabase Vault.
 
 ## 8. Prueba controlada de la infraestructura
 
-Esta prueba aislada aplica antes de instalar la etapa 3. Después de instalar los avisos de derivaciones, `mail-dispatch` exige comprobar una derivación y un perfil destinatario reales; utiliza entonces la prueba funcional descrita en `REFERRAL_NOTIFICATIONS_SETUP.md`.
+Esta prueba aislada aplica antes de instalar los avisos de derivaciones. Después
+de instalar el SQL `10`, `mail-dispatch` exige comprobar una derivación y el
+correo grupal real de su área destino; utiliza entonces la prueba funcional
+descrita en `REFERRAL_NOTIFICATIONS_SETUP.md`.
 
 Inserta temporalmente un evento con una dirección tuya de prueba:
 

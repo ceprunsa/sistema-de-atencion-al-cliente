@@ -10,7 +10,13 @@ import {
 import toast from "react-hot-toast";
 import ConfirmModal from "../components/ConfirmModal";
 import { useServiceChannels } from "../hooks/useServiceChannels";
-import type { ServiceChannel } from "../types";
+import type { ServiceChannel, ServiceChannelCategory } from "../types";
+
+const CATEGORY_LABELS: Record<ServiceChannelCategory, string> = {
+  IN_PERSON: "Atención presencial",
+  PHONE: "Atención telefónica",
+  EMAIL: "Correo electrónico",
+};
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación.";
@@ -29,6 +35,7 @@ const ServiceChannels = () => {
 
   const [name, setName] = useState("");
   const [detail, setDetail] = useState("");
+  const [category, setCategory] = useState<ServiceChannelCategory | "">("");
   const [editingChannel, setEditingChannel] =
     useState<ServiceChannel | null>(null);
   const [channelToChange, setChannelToChange] =
@@ -37,6 +44,7 @@ const ServiceChannels = () => {
   const resetForm = () => {
     setName("");
     setDetail("");
+    setCategory("");
     setEditingChannel(null);
   };
 
@@ -44,15 +52,20 @@ const ServiceChannels = () => {
     setEditingChannel(channel);
     setName(channel.name);
     setDetail(channel.detail);
+    setCategory(channel.category || "");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const values = { name: name.trim(), detail: detail.trim() };
+    if (!category) {
+      toast.error("Selecciona la categoría estable del medio.");
+      return;
+    }
+    const values = { name: name.trim(), detail: detail.trim(), category };
     if (!values.name || !values.detail) {
-      toast.error("El nombre y el detalle son obligatorios.");
+      toast.error("El nombre, el detalle y la categoría son obligatorios.");
       return;
     }
 
@@ -112,7 +125,7 @@ const ServiceChannels = () => {
               {editingChannel ? "Editar medio" : "Nuevo medio"}
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Ejemplo: Teléfono fijo y el número utilizado como detalle.
+              La categoría define las validaciones. Una vez usado el medio en una atención, no podrá cambiarse.
             </p>
           </div>
           {editingChannel && (
@@ -127,7 +140,24 @@ const ServiceChannels = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="channelCategory" className="block text-sm font-medium text-gray-700">
+              Categoría
+            </label>
+            <select
+              id="channelCategory"
+              value={category}
+              onChange={(event) => setCategory(event.target.value as ServiceChannelCategory | "")}
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+              <option value="">Selecciona una categoría</option>
+              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label htmlFor="channelName" className="block text-sm font-medium text-gray-700">
               Nombre
@@ -228,6 +258,9 @@ const ServiceChannels = () => {
                     </div>
                     <p className="mt-1 text-sm text-gray-500 break-words">
                       {channel.detail}
+                    </p>
+                    <p className="mt-1 text-xs font-medium text-blue-700">
+                      {channel.category ? CATEGORY_LABELS[channel.category] : "Sin categoría: edita este medio antes de usarlo"}
                     </p>
                     {!channel.isActive && channel.disabledByName && (
                       <p className="mt-1 text-xs text-gray-400">

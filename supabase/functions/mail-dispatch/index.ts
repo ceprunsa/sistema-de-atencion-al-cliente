@@ -243,7 +243,7 @@ Deno.serve(async (request) => {
 
     try {
       if (job.template_key === "REFERRAL_CREATED") {
-        const recipientProfileId = requireUuid(job.template_data || {}, "recipientProfileId");
+        const destinationAreaId = requireUuid(job.template_data || {}, "destinationAreaId");
         const { data: referral, error: referralError } = await client
           .from("attention_referrals")
           .select("attention_id,destination_area_id,status")
@@ -251,12 +251,12 @@ Deno.serve(async (request) => {
           .maybeSingle();
         if (referralError) throw new Error("SOURCE_VALIDATION_TRANSIENT:REFERRAL");
 
-        const { data: recipient, error: recipientError } = await client
-          .from("profiles")
-          .select("area_id,email,status")
-          .eq("id", recipientProfileId)
+        const { data: destinationArea, error: areaError } = await client
+          .from("areas")
+          .select("group_email")
+          .eq("id", destinationAreaId)
           .maybeSingle();
-        if (recipientError) throw new Error("SOURCE_VALIDATION_TRANSIENT:RECIPIENT");
+        if (areaError) throw new Error("SOURCE_VALIDATION_TRANSIENT:DESTINATION_AREA");
 
         let attentionIsActive = false;
         if (referral) {
@@ -271,9 +271,8 @@ Deno.serve(async (request) => {
 
         const sourceIsValid = referral?.status === "PENDING"
           && attentionIsActive
-          && recipient?.status === "active"
-          && recipient.area_id === referral.destination_area_id
-          && normalizeEmail(recipient.email || "") === normalizeEmail(job.recipient_email);
+          && referral.destination_area_id === destinationAreaId
+          && normalizeEmail(destinationArea?.group_email || "") === normalizeEmail(job.recipient_email);
         if (!sourceIsValid) {
           await finish({
             outcome: "FAILED_PERMANENT",

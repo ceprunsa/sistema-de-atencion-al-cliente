@@ -3,7 +3,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
-import { Building2, ClipboardPlus, Headphones, Home, Inbox, MonitorSmartphone, Users, X, LogOut, ChevronRight, User } from "lucide-react";
+import { Building2, CalendarRange, ClipboardPlus, Headphones, Home, Inbox, MonitorSmartphone, Users, X, LogOut, ChevronRight, User } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
@@ -250,6 +250,17 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                       {isActive("/service-channels") && (
                         <ChevronRight size={16} className="ml-auto" />
                       )}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/admission-processes"
+                      className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${isActive("/admission-processes") ? "bg-[#1A2855]/10 text-[#1A2855] font-medium" : "text-gray-700"}`}
+                      onClick={closeSidebar}
+                    >
+                      <CalendarRange size={18} className="mr-3" />
+                      <span>Procesos de admisión</span>
+                      {isActive("/admission-processes") && <ChevronRight size={16} className="ml-auto" />}
                     </Link>
                   </li>
                 </>

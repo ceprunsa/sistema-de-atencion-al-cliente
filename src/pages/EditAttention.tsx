@@ -8,8 +8,11 @@ import { attentionsApi } from "../api/attentions";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
 import { useAuth } from "../hooks/useAuth";
 import type { AttentionRequesterType } from "../types";
+import { formatAdmissionProcess } from "../utils/admissionProcesses";
 
 type ClientFields = {
+  dni: string;
+  displayName: string;
   firstName: string;
   middleName: string;
   paternalSurname: string;
@@ -33,13 +36,14 @@ const EditAttention = () => {
   const { updateAttention, isUpdating } = useAttentionActions();
 
   const [initialized, setInitialized] = useState(false);
-  const [client, setClient] = useState<ClientFields>({ firstName: "", middleName: "", paternalSurname: "", maternalSurname: "", email: "", phone: "" });
+  const [client, setClient] = useState<ClientFields>({ dni: "", displayName: "", firstName: "", middleName: "", paternalSurname: "", maternalSurname: "", email: "", phone: "" });
   const [serviceChannelId, setServiceChannelId] = useState("");
   const [requesterType, setRequesterType] = useState<AttentionRequesterType>("APPLICANT");
   const [kinshipTypeId, setKinshipTypeId] = useState("");
   const [requesterDetail, setRequesterDetail] = useState("");
   const [kinshipDetail, setKinshipDetail] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
+  const [selectedAdmissionProcessIds, setSelectedAdmissionProcessIds] = useState<string[]>([]);
   const [conclusion, setConclusion] = useState("");
   const [destinationAreaId, setDestinationAreaId] = useState("");
 
@@ -49,10 +53,12 @@ const EditAttention = () => {
   useEffect(() => {
     if (!attention || initialized) return;
     setClient({
-      firstName: attention.client.firstName,
+      dni: attention.client.dni || "",
+      displayName: attention.client.displayName,
+      firstName: attention.client.firstName || "",
       middleName: attention.client.middleName || "",
-      paternalSurname: attention.client.paternalSurname,
-      maternalSurname: attention.client.maternalSurname,
+      paternalSurname: attention.client.paternalSurname || "",
+      maternalSurname: attention.client.maternalSurname || "",
       email: attention.client.email || "",
       phone: attention.client.phone || "",
     });
@@ -62,6 +68,7 @@ const EditAttention = () => {
     setRequesterDetail(attention.requesterDetail || "");
     setKinshipDetail(attention.kinshipDetail || "");
     setSelectedTopicIds(attention.topics.map((topic) => topic.id));
+    setSelectedAdmissionProcessIds(attention.admissionProcesses.map((process) => process.id));
     setConclusion(attention.conclusion);
     setDestinationAreaId(attention.referral?.destinationAreaId || "");
     setInitialized(true);
@@ -95,11 +102,21 @@ const EditAttention = () => {
 
   const selectedKinship = catalogs?.kinshipTypes.find((kinship) => kinship.id === kinshipTypeId);
   const isOtherKinship = selectedKinship?.name.trim().toLowerCase() === "otro";
+  const selectedServiceChannel = catalogs?.serviceChannels.find((channel) => channel.id === serviceChannelId);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!id || !attention || !catalogs) return;
-    if (!client.firstName.trim() || !client.paternalSurname.trim() || !client.maternalSurname.trim()) {
+    if (client.dni && !/^\d{8}$/.test(client.dni)) {
+      toast.error("El DNI debe contener exactamente 8 dígitos.");
+      return;
+    }
+    if (selectedServiceChannel?.category === "EMAIL") {
+      if (!client.displayName.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(client.email.trim())) {
+        toast.error("El nombre o denominación y un correo válido son obligatorios.");
+        return;
+      }
+    } else if (!client.dni || !client.firstName.trim() || !client.paternalSurname.trim() || !client.maternalSurname.trim()) {
       toast.error("El primer nombre y ambos apellidos son obligatorios.");
       return;
     }
@@ -131,10 +148,14 @@ const EditAttention = () => {
       await updateAttention({
         id,
         client: {
-          firstName: client.firstName.trim(),
+          dni: client.dni || null,
+          displayName: selectedServiceChannel?.category === "EMAIL"
+            ? client.displayName.trim()
+            : [client.firstName, client.middleName, client.paternalSurname, client.maternalSurname].filter(Boolean).join(" "),
+          firstName: client.firstName.trim() || null,
           middleName: client.middleName.trim() || null,
-          paternalSurname: client.paternalSurname.trim(),
-          maternalSurname: client.maternalSurname.trim(),
+          paternalSurname: client.paternalSurname.trim() || null,
+          maternalSurname: client.maternalSurname.trim() || null,
           email: client.email.trim() || null,
           phone: client.phone.trim() || null,
         },
@@ -146,6 +167,7 @@ const EditAttention = () => {
         conclusion: conclusion.trim(),
         topics: selectedTopics.map((topic) => ({ topicId: topic.id })),
         destinationAreaId: destinationAreaId || null,
+        admissionProcessIds: selectedAdmissionProcessIds,
       });
       toast.success("Atención actualizada correctamente.");
       navigate(`/attentions/${id}`);
@@ -169,10 +191,11 @@ const EditAttention = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Cliente</h2>
-          <p className="mt-1 text-sm text-gray-500">DNI {attention.client.dni}. El DNI se conserva como identificador único.</p>
+          <p className="mt-1 text-sm text-gray-500">{attention.client.dni ? `DNI ${attention.client.dni}.` : "Cliente sin DNI."}</p>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div><label htmlFor="clientDni" className="block text-sm font-medium text-gray-700">DNI{selectedServiceChannel?.category === "EMAIL" ? " (opcional)" : " *"}</label><input id="clientDni" value={client.dni} onChange={(event) => updateClient("dni", event.target.value.replace(/\D/g, "").slice(0, 8))} disabled={!!attention.client.dni} inputMode="numeric" maxLength={8} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" /></div>
             {([[
-              "firstName", "Primer nombre *", "text"], ["middleName", "Segundo nombre", "text"], ["paternalSurname", "Apellido paterno *", "text"], ["maternalSurname", "Apellido materno *", "text"], ["email", "Correo", "email"], ["phone", "Teléfono", "text"]] as const).map(([field, label, type]) => (
+              "displayName", "Nombre o denominación *", "text"], ["firstName", "Primer nombre", "text"], ["middleName", "Segundo nombre", "text"], ["paternalSurname", "Apellido paterno", "text"], ["maternalSurname", "Apellido materno", "text"], ["email", "Correo", "email"], ["phone", "Teléfono", "text"]] as const).map(([field, label, type]) => (
               <div key={field}><label htmlFor={field} className="block text-sm font-medium text-gray-700">{label}</label><input id={field} type={type} value={client[field]} onChange={(event) => updateClient(field, event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div>
             ))}
           </div>
@@ -194,8 +217,14 @@ const EditAttention = () => {
         </section>
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-900">Procesos de admisión</h2>
+          <p className="mt-1 text-sm text-gray-500">Opcional. Los procesos históricos permanecen disponibles aunque estén inhabilitados.</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">{catalogs.admissionProcesses.map((process) => { const selected = selectedAdmissionProcessIds.includes(process.id); return <label key={process.id} className="flex items-center gap-2 rounded-md border p-3 text-sm"><input type="checkbox" checked={selected} disabled={!process.isActive && !selected} onChange={() => setSelectedAdmissionProcessIds((current) => current.includes(process.id) ? current.filter((value) => value !== process.id) : [...current, process.id])} className="rounded border-gray-300" />{formatAdmissionProcess(process)}{!process.isActive ? " (inhabilitado)" : ""}</label>; })}</div>
+        </section>
+
+        <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Resultado y derivación</h2>
-          <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.filter((area) => area.id !== user?.areaId || area.id === destinationAreaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue cerrada.</p>}{destinationAreaId && !referralLocked && <p className="mt-2 text-xs text-amber-700">La derivación requiere un correo válido del cliente.</p>}</div>
+          <div className="mt-4"><label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Área de destino</label><select id="destinationArea" value={destinationAreaId} disabled={referralLocked} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100"><option value="">Sin derivación</option>{catalogs.areas.filter((area) => area.id !== user?.areaId || area.id === destinationAreaId).map((area) => <option key={area.id} value={area.id} disabled={!area.groupEmail && area.id !== destinationAreaId}>{area.name}{!area.groupEmail ? " (sin correo de grupo)" : ""}</option>)}</select>{referralLocked && <p className="mt-2 text-xs text-amber-700">El área no puede modificarse porque la derivación ya fue cerrada.</p>}{destinationAreaId && !referralLocked && <p className="mt-2 text-xs text-amber-700">Se enviará un único aviso al correo grupal del área. La derivación también requiere un correo válido del cliente.</p>}</div>
           <div className="mt-4"><SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} label="Conclusión de la atención *" /></div>
         </section>
 

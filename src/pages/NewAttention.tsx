@@ -15,6 +15,7 @@ import { surveysApi } from "../api/surveys";
 import { useAuth } from "../hooks/useAuth";
 import { useNewAttention } from "../hooks/useNewAttention";
 import { supabase } from "../supabase/config";
+import { formatAdmissionProcess } from "../utils/admissionProcesses";
 import type {
   AttentionRequesterType,
   Client,
@@ -24,6 +25,7 @@ import type {
 } from "../types";
 
 type ClientForm = {
+  displayName: string;
   firstName: string;
   middleName: string;
   paternalSurname: string;
@@ -33,6 +35,7 @@ type ClientForm = {
 };
 
 const EMPTY_CLIENT: ClientForm = {
+  displayName: "",
   firstName: "",
   middleName: "",
   paternalSurname: "",
@@ -52,6 +55,8 @@ const NewAttention = () => {
     isErrorCatalogs,
     findClient,
     isSearchingClient,
+    findClientsByEmail,
+    isSearchingClientsByEmail,
     createAttention,
     isCreating,
   } = useNewAttention();
@@ -60,6 +65,8 @@ const NewAttention = () => {
   const [lookupCompleted, setLookupCompleted] = useState(false);
   const [lookupSource, setLookupSource] = useState<"LOCAL" | "EXTERNAL" | "MANUAL" | null>(null);
   const [existingClient, setExistingClient] = useState<Client | null>(null);
+  const [emailCandidates, setEmailCandidates] = useState<Client[]>([]);
+  const [emailChoiceMade, setEmailChoiceMade] = useState(false);
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   const [serviceChannelId, setServiceChannelId] = useState("");
   const [requesterType, setRequesterType] =
@@ -68,6 +75,7 @@ const NewAttention = () => {
   const [requesterDetail, setRequesterDetail] = useState("");
   const [kinshipDetail, setKinshipDetail] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
+  const [selectedAdmissionProcessIds, setSelectedAdmissionProcessIds] = useState<string[]>([]);
   const [conclusion, setConclusion] = useState("");
   const [destinationAreaId, setDestinationAreaId] = useState("");
   const [createdAttention, setCreatedAttention] =
@@ -76,6 +84,7 @@ const NewAttention = () => {
   const [surveyChannel, setSurveyChannel] = useState<SurveyChannel>("UNDECIDED");
   const [surveyEmail, setSurveyEmail] = useState("");
   const [isUpdatingSurvey, setIsUpdatingSurvey] = useState(false);
+  const [isCheckingPendingSurvey, setIsCheckingPendingSurvey] = useState(true);
 
   useEffect(() => {
     if (!createdAttention || !user) return;
@@ -106,13 +115,21 @@ const NewAttention = () => {
   }, [createdAttention, user]);
 
   useEffect(() => {
-    if (!user || createdAttention) return;
+    if (!user || createdAttention) {
+      setIsCheckingPendingSurvey(false);
+      return;
+    }
+    let active = true;
+    setIsCheckingPendingSurvey(true);
     void surveysApi.getOperatorPending().then((pending) => {
-      if (!pending) return;
+      if (!active || !pending) return;
       setCreatedAttention({ id: pending.attentionId, racCode: pending.racCode });
       setSurveyStatus(pending.status);
       setSurveyChannel(pending.channel);
-    }).catch(() => undefined);
+    }).catch(() => undefined).finally(() => {
+      if (active) setIsCheckingPendingSurvey(false);
+    });
+    return () => { active = false; };
   }, [user, createdAttention]);
 
   const topicsByType = useMemo(
@@ -125,12 +142,18 @@ const NewAttention = () => {
       })),
     [catalogs],
   );
+  const selectedServiceChannel = catalogs?.serviceChannels.find(
+    (channel) => channel.id === serviceChannelId,
+  );
+  const isEmailChannel = selectedServiceChannel?.category === "EMAIL";
 
   const resetClientLookup = (nextDni = "") => {
     setDni(nextDni);
     setLookupCompleted(false);
     setLookupSource(null);
     setExistingClient(null);
+    setEmailCandidates([]);
+    setEmailChoiceMade(false);
     setClient(EMPTY_CLIENT);
   };
 
@@ -142,6 +165,7 @@ const NewAttention = () => {
     setRequesterDetail("");
     setKinshipDetail("");
     setSelectedTopicIds([]);
+    setSelectedAdmissionProcessIds([]);
     setConclusion("");
     setDestinationAreaId("");
     setCreatedAttention(null);
@@ -152,7 +176,14 @@ const NewAttention = () => {
   };
 
   const handleDniChange = (value: string) => {
-    resetClientLookup(value.replace(/\D/g, "").slice(0, 8));
+    setDni(value.replace(/\D/g, "").slice(0, 8));
+    setLookupCompleted(false);
+    setLookupSource(null);
+    setExistingClient(null);
+    if (isEmailChannel) {
+      setEmailCandidates([]);
+      setEmailChoiceMade(false);
+    }
     setCreatedAttention(null);
   };
 
@@ -169,34 +200,39 @@ const NewAttention = () => {
       if (result.source === "LOCAL") {
         const found = result.client;
         setExistingClient(found);
+        if (isEmailChannel) setEmailChoiceMade(true);
         setClient({
-          firstName: found.firstName,
+          displayName: isEmailChannel ? client.displayName : found.displayName,
+          firstName: found.firstName || "",
           middleName: found.middleName || "",
-          paternalSurname: found.paternalSurname,
-          maternalSurname: found.maternalSurname,
-          email: found.email || "",
-          phone: found.phone || "",
+          paternalSurname: found.paternalSurname || "",
+          maternalSurname: found.maternalSurname || "",
+          email: isEmailChannel ? client.email : found.email || "",
+          phone: isEmailChannel ? client.phone : found.phone || "",
         });
-        toast.success("Cliente encontrado en el sistema. Sus datos fueron cargados.");
+        toast.success(isEmailChannel
+          ? "DNI encontrado. Se completaron los nombres; confirma aparte qué cliente corresponde al correo."
+          : "Cliente encontrado en el sistema. Sus datos fueron cargados.");
       } else if (result.source === "EXTERNAL") {
         setExistingClient(null);
         setClient({
+          displayName: isEmailChannel ? client.displayName : [result.person.firstName, result.person.middleName, result.person.paternalSurname, result.person.maternalSurname].filter(Boolean).join(" "),
           firstName: result.person.firstName,
           middleName: result.person.middleName || "",
           paternalSurname: result.person.paternalSurname,
           maternalSurname: result.person.maternalSurname,
-          email: "",
-          phone: "",
+          email: isEmailChannel ? client.email : "",
+          phone: isEmailChannel ? client.phone : "",
         });
         toast.success("DNI encontrado. Revisa los datos antes de registrar la atención.");
       } else {
         setExistingClient(null);
-        setClient(EMPTY_CLIENT);
+        if (!isEmailChannel) setClient(EMPTY_CLIENT);
         toast(result.message, { icon: "ℹ️" });
       }
     } catch (error) {
       setExistingClient(null);
-      setClient(EMPTY_CLIENT);
+      if (!isEmailChannel) setClient(EMPTY_CLIENT);
       setLookupCompleted(true);
       setLookupSource("MANUAL");
       toast.error(`${getErrorMessage(error)} Ingresa los datos manualmente.`);
@@ -205,6 +241,43 @@ const NewAttention = () => {
 
   const updateClient = (field: keyof ClientForm, value: string) => {
     setClient((current) => ({ ...current, [field]: value }));
+    if (field === "email") {
+      setEmailCandidates([]);
+      setEmailChoiceMade(false);
+      setExistingClient(null);
+    }
+  };
+
+  const handleSearchClientsByEmail = async () => {
+    const email = client.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email)) {
+      toast.error("Ingresa un correo electrónico válido.");
+      return;
+    }
+    try {
+      const matches = await findClientsByEmail(email);
+      setEmailCandidates(matches);
+      setEmailChoiceMade(matches.length === 0);
+      setExistingClient(null);
+      if (matches.length === 0) toast.success("No hay coincidencias. Se creará un cliente nuevo.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const selectEmailClient = (found: Client) => {
+    setExistingClient(found);
+    setEmailChoiceMade(true);
+    setDni(found.dni || dni);
+    setClient({
+      displayName: found.displayName,
+      firstName: found.firstName || "",
+      middleName: found.middleName || "",
+      paternalSurname: found.paternalSurname || "",
+      maternalSurname: found.maternalSurname || "",
+      email: found.email || client.email,
+      phone: found.phone || "",
+    });
   };
 
   const toggleTopic = (topicId: string) => {
@@ -230,16 +303,36 @@ const NewAttention = () => {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!lookupCompleted) {
+    if (!serviceChannelId || !selectedServiceChannel?.category) {
+      toast.error("Selecciona un medio de atención configurado.");
+      return;
+    }
+    if (isEmailChannel) {
+      if (!client.displayName.trim()) {
+        toast.error("Ingresa el nombre o denominación indicada en el correo.");
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(client.email.trim())) {
+        toast.error("Ingresa un correo electrónico válido.");
+        return;
+      }
+      if (!emailChoiceMade) {
+        toast.error("Busca el correo y elige un cliente existente o confirma que crearás uno nuevo.");
+        return;
+      }
+      if (dni && !/^\d{8}$/.test(dni)) {
+        toast.error("El DNI opcional debe contener exactamente 8 dígitos.");
+        return;
+      }
+      if (dni && !lookupCompleted && !existingClient) {
+        toast.error("Consulta el DNI ingresado antes de continuar.");
+        return;
+      }
+    } else if (!lookupCompleted) {
       toast.error("Primero busca el DNI del cliente.");
       return;
-    }
-    if (!existingClient && (!client.firstName.trim() || !client.paternalSurname.trim() || !client.maternalSurname.trim())) {
+    } else if (!existingClient && (!client.firstName.trim() || !client.paternalSurname.trim() || !client.maternalSurname.trim())) {
       toast.error("El primer nombre y ambos apellidos son obligatorios.");
-      return;
-    }
-    if (!serviceChannelId) {
-      toast.error("Selecciona un medio de atención.");
       return;
     }
     if (requesterType === "RELATIVE" && !kinshipTypeId) {
@@ -274,11 +367,16 @@ const NewAttention = () => {
     try {
       const result = await createAttention({
         client: {
-          dni,
-          firstName: client.firstName.trim(),
+          id: isEmailChannel ? existingClient?.id || null : null,
+          createNew: isEmailChannel && !existingClient,
+          dni: dni || null,
+          displayName: isEmailChannel
+            ? client.displayName.trim()
+            : [client.firstName, client.middleName, client.paternalSurname, client.maternalSurname].filter(Boolean).join(" "),
+          firstName: client.firstName.trim() || null,
           middleName: client.middleName.trim() || null,
-          paternalSurname: client.paternalSurname.trim(),
-          maternalSurname: client.maternalSurname.trim(),
+          paternalSurname: client.paternalSurname.trim() || null,
+          maternalSurname: client.maternalSurname.trim() || null,
           email: client.email.trim() || null,
           phone: client.phone.trim() || null,
         },
@@ -293,6 +391,7 @@ const NewAttention = () => {
         conclusion: conclusion.trim(),
         topics: selectedTopics.map((topic) => ({ topicId: topic.id })),
         destinationAreaId: destinationAreaId || null,
+        admissionProcessIds: selectedAdmissionProcessIds,
       });
       setCreatedAttention(result);
       setSurveyStatus("PENDING_DECISION");
@@ -305,14 +404,14 @@ const NewAttention = () => {
     }
   };
 
-  if (isLoadingCatalogs) {
+  if (isLoadingCatalogs || isCheckingPendingSurvey) {
     return <div className="py-16 text-center text-gray-500">Cargando formulario de atención...</div>;
   }
 
   if (isErrorCatalogs || !catalogs) {
     return (
       <div className="max-w-4xl mx-auto rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
-        No se pudieron cargar los catálogos de atención. Verifica que los SQL 03 y 04 estén instalados en Supabase.
+        No se pudieron cargar los catálogos de atención. Verifica que los SQL 03, 04, 12 y 13 estén instalados en Supabase.
       </div>
     );
   }
@@ -384,22 +483,107 @@ const NewAttention = () => {
   }
 
   const clientInputsDisabled = !lookupCompleted || !!existingClient;
+  const clientReady = isEmailChannel ? emailChoiceMade : lookupCompleted;
 
   return (
     <div className="w-full max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Nueva atención</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Busca al cliente por DNI y registra los detalles de la atención.
+          Selecciona el medio y registra los datos requeridos para ese canal.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-900">1. Medio de atención</h2>
+          {catalogs.serviceChannels.length === 0 ? (
+            <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+              No hay medios activos con una categoría configurada. Un administrador debe crear o actualizar uno.
+            </div>
+          ) : (
+            <div className="mt-4">
+              <label htmlFor="serviceChannel" className="block text-sm font-medium text-gray-700">Medio de atención *</label>
+              <select
+                id="serviceChannel"
+                value={serviceChannelId}
+                onChange={(event) => {
+                  setServiceChannelId(event.target.value);
+                  setLookupCompleted(false);
+                  setLookupSource(null);
+                  setExistingClient(null);
+                  setEmailCandidates([]);
+                  setEmailChoiceMade(false);
+                  toast("Los datos escritos se conservaron; verifica los campos obligatorios del nuevo medio.", { icon: "ℹ️" });
+                }}
+                required
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="">Selecciona un medio</option>
+                {catalogs.serviceChannels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>{channel.name} — {channel.detail}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Search size={20} className="text-[#1A2855]" />
-            <h2 className="font-semibold text-gray-900">1. Identificación del cliente</h2>
+            <h2 className="font-semibold text-gray-900">2. Identificación del cliente</h2>
           </div>
+          {!serviceChannelId ? (
+            <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Selecciona primero el medio de atención.</p>
+          ) : isEmailChannel ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">Nombre o denominación del correo *</label>
+                  <input id="displayName" value={client.displayName} onChange={(event) => updateClient("displayName", event.target.value)} maxLength={250} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo electrónico *</label>
+                  <div className="mt-1 flex gap-2">
+                    <input id="email" type="email" value={client.email} onChange={(event) => updateClient("email", event.target.value)} className="block min-w-0 flex-1 rounded-md border-gray-300 shadow-sm" />
+                    <button type="button" onClick={() => void handleSearchClientsByEmail()} disabled={isSearchingClientsByEmail} className="btn btn-secondary whitespace-nowrap">{isSearchingClientsByEmail ? "Buscando..." : "Buscar correo"}</button>
+                  </div>
+                </div>
+              </div>
+              {emailCandidates.length > 0 && !emailChoiceMade && (
+                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-medium text-amber-900">Este correo coincide con uno o más clientes. Elige uno o crea un registro independiente.</p>
+                  <div className="mt-3 space-y-2">
+                    {emailCandidates.map((candidate) => (
+                      <button key={candidate.id} type="button" onClick={() => selectEmailClient(candidate)} className="block w-full rounded-md border border-amber-200 bg-white p-3 text-left text-sm hover:border-amber-400">
+                        <span className="font-medium">{candidate.displayName}</span>
+                        <span className="ml-2 text-gray-500">{candidate.dni ? `DNI ${candidate.dni}` : "Sin DNI"}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => { setExistingClient(null); setEmailChoiceMade(true); }} className="mt-3 text-sm font-medium text-blue-700 hover:underline">Crear otro cliente con este mismo correo</button>
+                </div>
+              )}
+              {emailChoiceMade && (
+                <div className="mt-4 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800">
+                  {existingClient ? <UserCheck size={18} /> : <UserPlus size={18} />}
+                  <span className="flex-1">{existingClient ? `Se reutilizará a ${existingClient.displayName}.` : "Se creará un cliente independiente."}</span>
+                  <button type="button" onClick={() => { setEmailChoiceMade(false); setExistingClient(null); void handleSearchClientsByEmail(); }} className="font-medium text-blue-700 hover:underline">Cambiar</button>
+                </div>
+              )}
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <label htmlFor="dni" className="block text-sm font-medium text-gray-700">DNI (opcional)</label>
+                  <input id="dni" value={dni} onChange={(event) => handleDniChange(event.target.value)} inputMode="numeric" maxLength={8} placeholder="8 dígitos" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                </div>
+                <button type="button" onClick={handleSearchClient} disabled={isSearchingClient || !dni} className="btn btn-secondary disabled:opacity-60">Consultar DNI</button>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div><label htmlFor="phone" className="block text-sm font-medium text-gray-700">Teléfono</label><input id="phone" value={client.phone} onChange={(event) => updateClient("phone", event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+              </div>
+            </>
+          ) : (
+          <>
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
             <div className="flex-1">
               <label htmlFor="dni" className="block text-sm font-medium text-gray-700">DNI</label>
@@ -458,34 +642,14 @@ const NewAttention = () => {
               </div>
             ))}
           </div>
+          </>
+          )}
         </section>
 
-        <fieldset disabled={!lookupCompleted || isCreating} className="space-y-6 disabled:opacity-60">
+        <fieldset disabled={!clientReady || isCreating} className="space-y-6 disabled:opacity-60">
           <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="font-semibold text-gray-900 mb-4">2. Datos de la atención</h2>
-            {catalogs.serviceChannels.length === 0 ? (
-              <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-                No hay medios de atención activos. Un administrador debe crear o reactivar uno antes de registrar atenciones.
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="serviceChannel" className="block text-sm font-medium text-gray-700">Medio de atención *</label>
-                <select
-                  id="serviceChannel"
-                  value={serviceChannelId}
-                  onChange={(event) => setServiceChannelId(event.target.value)}
-                  required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                >
-                  <option value="">Selecciona un medio</option>
-                  {catalogs.serviceChannels.map((channel) => (
-                    <option key={channel.id} value={channel.id}>{channel.name} — {channel.detail}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="mt-5">
+            <h2 className="font-semibold text-gray-900 mb-4">3. Datos de la atención</h2>
+            <div>
               <span className="block text-sm font-medium text-gray-700">¿Quién solicita la atención? *</span>
               <div className="mt-2 flex flex-wrap gap-5">
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700">
@@ -527,7 +691,7 @@ const NewAttention = () => {
           </section>
 
           <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="font-semibold text-gray-900">3. Temas consultados *</h2>
+            <h2 className="font-semibold text-gray-900">4. Temas consultados *</h2>
             <p className="mt-1 text-sm text-gray-500">Puedes seleccionar uno o varios temas.</p>
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               {topicsByType.map((type) => (
@@ -553,14 +717,24 @@ const NewAttention = () => {
           </section>
 
           <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="font-semibold text-gray-900 mb-4">4. Resultado y derivación</h2>
+            <h2 className="font-semibold text-gray-900">5. Procesos de admisión</h2>
+            <p className="mt-1 text-sm text-gray-500">Opcional. Puedes seleccionar más de uno.</p>
+            {catalogs.admissionProcesses.length === 0 ? <p className="mt-4 text-sm text-gray-400">No hay procesos activos.</p> : <div className="mt-4 grid gap-3 md:grid-cols-2">{catalogs.admissionProcesses.map((process) => <label key={process.id} className="flex items-center gap-2 rounded-md border p-3 text-sm"><input type="checkbox" checked={selectedAdmissionProcessIds.includes(process.id)} onChange={() => setSelectedAdmissionProcessIds((current) => current.includes(process.id) ? current.filter((id) => id !== process.id) : [...current, process.id])} className="rounded border-gray-300" />{formatAdmissionProcess(process)}</label>)}</div>}
+          </section>
+
+          <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+            <h2 className="font-semibold text-gray-900 mb-4">6. Resultado y derivación</h2>
             <div>
               <label htmlFor="destinationArea" className="block text-sm font-medium text-gray-700">Derivar a un área (opcional)</label>
               <select id="destinationArea" value={destinationAreaId} onChange={(event) => setDestinationAreaId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 <option value="">Sin derivación</option>
-                {catalogs.areas.filter((area) => area.id !== user?.areaId).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+                {catalogs.areas.filter((area) => area.id !== user?.areaId).map((area) => (
+                  <option key={area.id} value={area.id} disabled={!area.groupEmail}>
+                    {area.name}{!area.groupEmail ? " (sin correo de grupo)" : ""}
+                  </option>
+                ))}
               </select>
-              {destinationAreaId && <p className="mt-2 text-xs text-amber-700">La derivación requiere un correo válido del cliente para enviar el resultado y su encuesta.</p>}
+              {destinationAreaId && <p className="mt-2 text-xs text-amber-700">Se enviará un único aviso al correo grupal del área. La derivación también requiere un correo válido del cliente para comunicar su resultado.</p>}
             </div>
             <div className="mt-4">
               <SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} />
@@ -569,7 +743,7 @@ const NewAttention = () => {
         </fieldset>
 
         <div className="flex justify-end">
-          <button type="submit" disabled={!lookupCompleted || isCreating || catalogs.serviceChannels.length === 0} className="btn btn-primary inline-flex items-center disabled:opacity-60">
+          <button type="submit" disabled={!clientReady || isCreating || catalogs.serviceChannels.length === 0} className="btn btn-primary inline-flex items-center disabled:opacity-60">
             <ClipboardPlus size={18} className="mr-2" />
             {isCreating ? "Registrando..." : "Registrar atención"}
           </button>
