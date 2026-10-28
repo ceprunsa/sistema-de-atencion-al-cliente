@@ -317,6 +317,13 @@ export interface Database {
           requester_detail: string | null;
           kinship_detail: string | null;
           conclusion: string;
+          creation_origin: string;
+          email_received_at: string | null;
+          email_responded_at: string | null;
+          email_original_text: string | null;
+          email_attachments: Json;
+          source_message_key_hash: string | null;
+          source_fingerprint: string | null;
           status: string;
           created_by: string | null;
           created_by_name: string;
@@ -342,6 +349,13 @@ export interface Database {
           requester_detail?: string | null;
           kinship_detail?: string | null;
           conclusion: string;
+          creation_origin?: string;
+          email_received_at?: string | null;
+          email_responded_at?: string | null;
+          email_original_text?: string | null;
+          email_attachments?: Json;
+          source_message_key_hash?: string | null;
+          source_fingerprint?: string | null;
           status?: string;
           created_by?: string | null;
           created_by_name: string;
@@ -367,6 +381,13 @@ export interface Database {
           requester_detail?: string | null;
           kinship_detail?: string | null;
           conclusion?: string;
+          creation_origin?: string;
+          email_received_at?: string | null;
+          email_responded_at?: string | null;
+          email_original_text?: string | null;
+          email_attachments?: Json;
+          source_message_key_hash?: string | null;
+          source_fingerprint?: string | null;
           status?: string;
           created_by?: string | null;
           created_by_name?: string;
@@ -841,6 +862,29 @@ export interface Database {
         };
         Returns: Json;
       };
+      create_customer_attention_v4: {
+        Args: {
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_client_contact_email: string | null;
+          p_admission_process_ids: Json;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+          p_creation_origin?: string;
+          p_email_received_at?: string | null;
+          p_email_responded_at?: string | null;
+          p_email_original_text?: string | null;
+          p_email_attachments?: Json;
+          p_source_message_key_hash?: string | null;
+          p_source_fingerprint?: string | null;
+        };
+        Returns: Json;
+      };
       update_customer_attention_v3: {
         Args: {
           p_attention_id: string;
@@ -856,6 +900,40 @@ export interface Database {
           p_kinship_detail?: string | null;
         };
         Returns: void;
+      };
+      update_customer_attention_v4: {
+        Args: {
+          p_attention_id: string;
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_admission_process_ids: Json;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+          p_email_received_at?: string | null;
+          p_email_responded_at?: string | null;
+        };
+        Returns: void;
+      };
+      set_email_attention_response_at: {
+        Args: { p_attention_id: string; p_responded_at: string | null };
+        Returns: void;
+      };
+      find_email_attention_duplicates: {
+        Args: {
+          p_source_message_key_hash?: string | null;
+          p_source_fingerprint?: string | null;
+        };
+        Returns: Array<{
+          id: string;
+          rac_code: string;
+          created_at: string;
+          match_type: string;
+        }>;
       };
       get_my_attention_registration_state: {
         Args: Record<PropertyKey, never>;

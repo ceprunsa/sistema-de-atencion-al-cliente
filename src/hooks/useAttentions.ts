@@ -73,15 +73,21 @@ export const useAttentionActions = () => {
     mutationFn: ({ id, reason }: { id: string; reason: string }) => referralsApi.disable(id, reason),
     onSuccess: refresh,
   });
+  const setEmailResponseMutation = useMutation({
+    mutationFn: attentionsApi.setEmailResponseAt,
+    onSuccess: refresh,
+  });
 
   return {
     updateAttention: updateMutation.mutateAsync,
     disableAttention: disableMutation.mutateAsync,
     concludeReferral: concludeMutation.mutateAsync,
     disableReferral: disableReferralMutation.mutateAsync,
+    setEmailResponseAt: setEmailResponseMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
     isDisabling: disableMutation.isPending,
     isConcluding: concludeMutation.isPending,
     isDisablingReferral: disableReferralMutation.isPending,
+    isSettingEmailResponse: setEmailResponseMutation.isPending,
   };
 };

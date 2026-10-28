@@ -40,7 +40,8 @@ Ejecuta en SQL Editor, en este orden:
 12. `supabase/sql/13_admission_processes.sql`
 13. `supabase/sql/14_dashboard_statistics.sql`
 14. `supabase/sql/15_dashboard_attention_trend.sql`
-15. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
+15. `supabase/sql/16_email_attention_import_metadata.sql`
+16. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
 
 Después configura el hook de invitaciones, OAuth y Realtime siguiendo `SUPABASE_WORKSTATIONS_SETUP.md`.
 
@@ -83,6 +84,12 @@ Para agregar la serie temporal diaria o mensual al Dashboard, ejecuta una sola v
 
 No ejecutes simultáneamente esa migración y el SQL `15`: contienen la misma ampliación.
 
+Para agregar las fechas, el mensaje original, los adjuntos visibles y el origen de las atenciones por correo, ejecuta una sola vez:
+
+`supabase/migrations/20261028000000_email_attention_import_metadata.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `16`: contienen la misma ampliación. Las RPC v3 se conservan temporalmente para permitir el despliegue gradual del formulario; la integración nueva utilizará las RPC v4.
+
 Para instalar y desplegar el servicio de correo consulta `MAIL_SERVICE_SETUP.md`.
 
 Para configurar la consulta externa de DNI consulta `DNI_LOOKUP_SETUP.md`.
@@ -92,6 +99,21 @@ Para activar los avisos y el contador de derivaciones consulta `REFERRAL_NOTIFIC
 Para habilitar las encuestas de atención por correo consulta `ATTENTION_EMAIL_SURVEY_SETUP.md`.
 
 Para habilitar el correo de resolución y la encuesta independiente de derivaciones consulta `REFERRAL_RESOLUTION_SURVEY_SETUP.md`.
+
+## Extensión Chrome para Gmail
+
+La carpeta `chrome-extension/` contiene la extensión Manifest V3 y su puente
+temporal con el formulario RAC. El manifest de producción está limitado a
+`https://sistema-de-atencion-al-cliente.vercel.app/*`; para las pruebas locales
+consulta `chrome-extension/README.md`.
+
+La precarga se conserva en `chrome.storage.session`, asociada exclusivamente a
+la pestaña abierta por la extensión. Se elimina al guardar, descartarla, cerrar
+la pestaña, vencer 30 minutos o reiniciar Chrome.
+
+`npm run verify` también valida los manifests, permisos, dominios y sintaxis de
+la extensión. Para la prueba manual completa consulta
+`chrome-extension/TESTING.md`.
 
 ## Reinicio de datos para producción
 

@@ -29,6 +29,20 @@ export type SurveyResponse =
 export type SurveyChannel = "UNDECIDED" | "TABLET" | "EMAIL";
 export type ReferralStatus = "NONE" | "PENDING" | "RESOLVED" | "DISABLED" | "CANCELLED";
 export type ServiceChannelCategory = "IN_PERSON" | "PHONE" | "EMAIL";
+export type AttentionCreationOrigin = "WEB" | "GMAIL_CHROME_EXTENSION";
+
+export interface EmailAttachmentMetadata {
+  name: string;
+  sizeLabel?: string | null;
+  typeLabel?: string | null;
+}
+
+export interface EmailAttentionDuplicate {
+  id: string;
+  racCode: string;
+  createdAt: string;
+  matchType: "MESSAGE_KEY" | "FINGERPRINT";
+}
 export type AdmissionProcessPhase =
   | "CEPRUNSA_I"
   | "CEPRUNSA_QUINTOS"
@@ -210,6 +224,13 @@ export interface CustomerAttention {
   requesterDetail: string | null;
   kinshipDetail: string | null;
   conclusion: string;
+  creationOrigin: AttentionCreationOrigin;
+  emailReceivedAt: string | null;
+  emailRespondedAt: string | null;
+  emailOriginalText: string | null;
+  emailAttachments: EmailAttachmentMetadata[];
+  sourceMessageKeyHash: string | null;
+  sourceFingerprint: string | null;
   status: CustomerAttentionStatus;
   createdById: string | null;
   createdByName: string;
@@ -241,6 +262,13 @@ export interface CreateCustomerAttentionInput {
   requesterDetail?: string | null;
   kinshipDetail?: string | null;
   conclusion: string;
+  creationOrigin?: AttentionCreationOrigin;
+  emailReceivedAt?: string | null;
+  emailRespondedAt?: string | null;
+  emailOriginalText?: string | null;
+  emailAttachments?: EmailAttachmentMetadata[];
+  sourceMessageKeyHash?: string | null;
+  sourceFingerprint?: string | null;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
   admissionProcessIds: string[];
@@ -278,6 +306,8 @@ export interface UpdateCustomerAttentionInput {
   requesterDetail?: string | null;
   kinshipDetail?: string | null;
   conclusion: string;
+  emailReceivedAt?: string | null;
+  emailRespondedAt?: string | null;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
   admissionProcessIds: string[];

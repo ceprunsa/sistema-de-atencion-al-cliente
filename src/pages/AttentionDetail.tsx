@@ -1,22 +1,25 @@
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, Ban, CalendarClock, Headphones, MapPin, Pencil, Send, ShieldX, Star, UserRound, X } from "lucide-react";
+import { ArrowLeft, Ban, CalendarClock, Headphones, Mail, MapPin, Paperclip, Pencil, Send, ShieldX, Star, UserRound, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../hooks/useAuth";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
 import { formatLocalDate } from "../utils/dateUtils";
 import { formatAdmissionProcess } from "../utils/admissionProcesses";
+import { currentDateTimeLocalInput, toDateTimeLocalInput, toOptionalIsoDateTime } from "../utils/emailAttention";
 
 const AttentionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { data: attention, isLoading, isError, error } = useAttention(id);
   const { user, isAdmin } = useAuth();
-  const { disableAttention, concludeReferral, disableReferral, isDisabling, isConcluding, isDisablingReferral } = useAttentionActions();
+  const { disableAttention, concludeReferral, disableReferral, setEmailResponseAt, isDisabling, isConcluding, isDisablingReferral, isSettingEmailResponse } = useAttentionActions();
   const [showDisableModal, setShowDisableModal] = useState(false);
   const [disableReason, setDisableReason] = useState("");
   const [referralConclusion, setReferralConclusion] = useState("");
   const [showReferralDisableModal, setShowReferralDisableModal] = useState(false);
   const [referralDisableReason, setReferralDisableReason] = useState("");
+  const [showEmailResponseModal, setShowEmailResponseModal] = useState(false);
+  const [emailResponseAt, setEmailResponseAtValue] = useState("");
 
   if (isLoading) return <div className="py-16 text-center text-gray-500">Cargando detalle de la atención...</div>;
 
@@ -46,6 +49,42 @@ const AttentionDetail = () => {
     attention.referral.status === "PENDING" &&
     !!attention.referral.destinationAreaId &&
     user?.areaId === attention.referral.destinationAreaId;
+  const canManageEmailResponse =
+    attention.status === "ACTIVE" &&
+    attention.serviceChannel.category === "EMAIL" &&
+    (isAdmin || attention.createdById === user?.id) &&
+    (isAdmin || !attention.emailRespondedAt);
+
+  const openEmailResponseModal = () => {
+    setEmailResponseAtValue(toDateTimeLocalInput(attention.emailRespondedAt) || currentDateTimeLocalInput());
+    setShowEmailResponseModal(true);
+  };
+
+  const handleEmailResponse = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const respondedAt = toOptionalIsoDateTime(emailResponseAt);
+    if (!respondedAt) return toast.error("Ingresa una fecha y hora de respuesta válida.");
+    if (!attention.emailReceivedAt) return toast.error("Primero debe existir una fecha de recepción.");
+    if (new Date(respondedAt) < new Date(attention.emailReceivedAt)) return toast.error("La respuesta no puede ser anterior a la recepción.");
+    try {
+      await setEmailResponseAt({ id: attention.id, respondedAt });
+      toast.success(attention.emailRespondedAt ? "Fecha de respuesta corregida." : "Respuesta registrada correctamente.");
+      setShowEmailResponseModal(false);
+    } catch (mutationError) {
+      toast.error(mutationError instanceof Error ? mutationError.message : "No se pudo registrar la respuesta.");
+    }
+  };
+
+  const handleClearEmailResponse = async () => {
+    if (!isAdmin) return;
+    try {
+      await setEmailResponseAt({ id: attention.id, respondedAt: null });
+      toast.success("Fecha de respuesta eliminada.");
+      setShowEmailResponseModal(false);
+    } catch (mutationError) {
+      toast.error(mutationError instanceof Error ? mutationError.message : "No se pudo eliminar la fecha de respuesta.");
+    }
+  };
 
   const handleDisable = async () => {
     if (!disableReason.trim()) {
@@ -111,6 +150,32 @@ const AttentionDetail = () => {
           </div>
         )}
       </div>
+
+      {attention.serviceChannel.category === "EMAIL" && (
+        <section className="mt-6 rounded-lg border border-blue-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-2"><Mail size={20} className="text-[#1A2855]" /><h2 className="font-semibold text-gray-900">Correo recibido</h2></div>
+            <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${attention.creationOrigin === "GMAIL_CHROME_EXTENSION" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{attention.creationOrigin === "GMAIL_CHROME_EXTENSION" ? "Importado desde la extensión de Gmail" : "Registrado desde el sistema"}</span>
+          </div>
+          <dl className="mt-4 grid gap-4 text-sm md:grid-cols-2">
+            <div><dt className="text-gray-500">Fecha de recepción</dt><dd className="mt-1 font-medium text-gray-900">{attention.emailReceivedAt ? formatLocalDate(attention.emailReceivedAt) : "No registrada (atención histórica)"}</dd></div>
+            <div><dt className="text-gray-500">Fecha de respuesta o resolución</dt><dd className={`mt-1 font-medium ${attention.emailRespondedAt ? "text-green-700" : "text-amber-700"}`}>{attention.emailRespondedAt ? formatLocalDate(attention.emailRespondedAt) : "Pendiente de respuesta"}</dd></div>
+          </dl>
+          {canManageEmailResponse && attention.emailReceivedAt && <button type="button" onClick={openEmailResponseModal} className="btn btn-secondary mt-4 inline-flex">{attention.emailRespondedAt ? "Corregir fecha de respuesta" : "Registrar fecha de respuesta"}</button>}
+
+          <div className="mt-5 border-t pt-5">
+            <h3 className="text-sm font-medium text-gray-800">Asunto y mensaje original</h3>
+            {attention.emailOriginalText ? <pre className="mt-2 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md bg-gray-50 p-4 font-sans text-sm leading-6 text-gray-700">{attention.emailOriginalText}</pre> : <p className="mt-2 text-sm text-gray-500">Esta atención histórica no conserva el mensaje original.</p>}
+          </div>
+
+          {attention.emailAttachments.length > 0 && (
+            <div className="mt-5">
+              <div className="flex items-center gap-2"><Paperclip size={17} className="text-gray-500" /><h3 className="text-sm font-medium text-gray-800">Adjuntos informados</h3></div>
+              <ul className="mt-2 grid gap-2 md:grid-cols-2">{attention.emailAttachments.map((attachment, index) => <li key={`${attachment.name}-${index}`} className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700"><span className="font-medium">{attachment.name}</span>{attachment.sizeLabel && <span className="ml-2 text-gray-500">{attachment.sizeLabel}</span>}{attachment.typeLabel && <span className="ml-2 text-gray-400">{attachment.typeLabel}</span>}</li>)}</ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {attention.status === "DISABLED" && (
         <section className="mb-6 rounded-lg border border-red-200 bg-red-50 p-5">
@@ -229,6 +294,16 @@ const AttentionDetail = () => {
       )}
       {showReferralDisableModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/60 px-4"><div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"><div className="flex justify-between"><div><h2 className="text-xl font-bold">Inhabilitar derivación</h2><p className="mt-1 text-sm text-gray-500">La atención seguirá activa, pero la derivación quedará cerrada.</p></div><button onClick={() => setShowReferralDisableModal(false)}><X size={20} /></button></div><label className="mt-5 block text-sm font-medium">Motivo *</label><textarea rows={4} maxLength={1000} value={referralDisableReason} onChange={(e) => setReferralDisableReason(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300" /><div className="mt-5 flex justify-end gap-2"><button onClick={() => setShowReferralDisableModal(false)} className="btn btn-secondary">Cancelar</button><button disabled={isDisablingReferral} onClick={handleDisableReferral} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{isDisablingReferral ? "Inhabilitando..." : "Confirmar"}</button></div></div></div>
+      )}
+      {showEmailResponseModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/60 px-4">
+          <form onSubmit={handleEmailResponse} role="dialog" aria-modal="true" aria-labelledby="email-response-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4"><div><h2 id="email-response-title" className="text-xl font-bold text-gray-900">{attention.emailRespondedAt ? "Corregir fecha de respuesta" : "Registrar respuesta del correo"}</h2><p className="mt-1 text-sm text-gray-500">Esta acción solo registra cuándo se respondió o resolvió la consulta.</p></div><button type="button" onClick={() => setShowEmailResponseModal(false)} disabled={isSettingEmailResponse} aria-label="Cerrar" className="rounded p-1 text-gray-400 hover:bg-gray-100"><X size={20} /></button></div>
+            <label htmlFor="emailResponseAt" className="mt-5 block text-sm font-medium text-gray-700">Fecha y hora de respuesta *</label>
+            <input id="emailResponseAt" type="datetime-local" required min={toDateTimeLocalInput(attention.emailReceivedAt)} max={currentDateTimeLocalInput()} value={emailResponseAt} onChange={(event) => setEmailResponseAtValue(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+            <div className="mt-6 flex flex-wrap justify-end gap-2">{isAdmin && attention.emailRespondedAt && <button type="button" onClick={() => void handleClearEmailResponse()} disabled={isSettingEmailResponse} className="mr-auto text-sm font-medium text-red-600 hover:underline disabled:opacity-50">Eliminar fecha</button>}<button type="button" onClick={() => setShowEmailResponseModal(false)} disabled={isSettingEmailResponse} className="btn btn-secondary">Cancelar</button><button type="submit" disabled={isSettingEmailResponse} className="btn btn-primary disabled:opacity-50">{isSettingEmailResponse ? "Guardando..." : "Guardar fecha"}</button></div>
+          </form>
+        </div>
       )}
     </div>
   );

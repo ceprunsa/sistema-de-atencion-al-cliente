@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "verify": "npm run lint && npm run build",
+    "verify:extension": "node scripts/verify-chrome-extension.mjs",
+    "verify": "npm run lint && npm run build && npm run verify:extension",
     "preview": "vite preview"
   },
   "dependencies": {

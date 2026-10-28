@@ -9,6 +9,11 @@ import { useAttention, useAttentionActions } from "../hooks/useAttentions";
 import { useAuth } from "../hooks/useAuth";
 import type { AttentionRequesterType } from "../types";
 import { formatAdmissionProcess } from "../utils/admissionProcesses";
+import {
+  currentDateTimeLocalInput,
+  toDateTimeLocalInput,
+  toOptionalIsoDateTime,
+} from "../utils/emailAttention";
 
 type ClientFields = {
   dni: string;
@@ -46,6 +51,8 @@ const EditAttention = () => {
   const [selectedAdmissionProcessIds, setSelectedAdmissionProcessIds] = useState<string[]>([]);
   const [conclusion, setConclusion] = useState("");
   const [destinationAreaId, setDestinationAreaId] = useState("");
+  const [emailReceivedAt, setEmailReceivedAt] = useState("");
+  const [emailRespondedAt, setEmailRespondedAt] = useState("");
 
   const attention = attentionQuery.data;
   const catalogs = catalogsQuery.data;
@@ -71,6 +78,8 @@ const EditAttention = () => {
     setSelectedAdmissionProcessIds(attention.admissionProcesses.map((process) => process.id));
     setConclusion(attention.conclusion);
     setDestinationAreaId(attention.referral?.destinationAreaId || "");
+    setEmailReceivedAt(toDateTimeLocalInput(attention.emailReceivedAt));
+    setEmailRespondedAt(toDateTimeLocalInput(attention.emailRespondedAt));
     setInitialized(true);
   }, [attention, initialized]);
 
@@ -114,6 +123,20 @@ const EditAttention = () => {
     if (selectedServiceChannel?.category === "EMAIL") {
       if (!client.displayName.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(client.email.trim())) {
         toast.error("El nombre o denominación y un correo válido son obligatorios.");
+        return;
+      }
+      const receivedAt = toOptionalIsoDateTime(emailReceivedAt);
+      const respondedAt = toOptionalIsoDateTime(emailRespondedAt);
+      if (attention.emailOriginalText && !receivedAt) {
+        toast.error("La fecha de recepción es obligatoria para esta atención por correo.");
+        return;
+      }
+      if (receivedAt && new Date(receivedAt).getTime() > Date.now() + 5 * 60_000) {
+        toast.error("La fecha de recepción no puede estar en el futuro.");
+        return;
+      }
+      if (emailRespondedAt && (!respondedAt || !receivedAt || new Date(respondedAt) < new Date(receivedAt))) {
+        toast.error("La fecha de respuesta debe ser igual o posterior a la recepción.");
         return;
       }
     } else if (!client.dni || !client.firstName.trim() || !client.paternalSurname.trim() || !client.maternalSurname.trim()) {
@@ -165,6 +188,8 @@ const EditAttention = () => {
         requesterDetail: requesterType === "OTHER" ? requesterDetail.trim() : null,
         kinshipDetail: requesterType === "RELATIVE" && isOtherKinship ? kinshipDetail.trim() : null,
         conclusion: conclusion.trim(),
+        emailReceivedAt: selectedServiceChannel?.category === "EMAIL" ? toOptionalIsoDateTime(emailReceivedAt) : null,
+        emailRespondedAt: selectedServiceChannel?.category === "EMAIL" ? toOptionalIsoDateTime(emailRespondedAt) : null,
         topics: selectedTopics.map((topic) => ({ topicId: topic.id })),
         destinationAreaId: destinationAreaId || null,
         admissionProcessIds: selectedAdmissionProcessIds,
@@ -203,11 +228,23 @@ const EditAttention = () => {
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Datos de la atención</h2>
-          <div className="mt-4"><label htmlFor="serviceChannel" className="block text-sm font-medium text-gray-700">Medio *</label><select id="serviceChannel" value={serviceChannelId} onChange={(event) => setServiceChannelId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">Selecciona un medio</option>{catalogs.serviceChannels.map((channel) => <option key={channel.id} value={channel.id} disabled={!channel.isActive && channel.id !== attention.serviceChannelId}>{channel.name} — {channel.detail}{!channel.isActive ? " (inhabilitado)" : ""}</option>)}</select></div>
+          <div className="mt-4"><label htmlFor="serviceChannel" className="block text-sm font-medium text-gray-700">Medio *</label><select id="serviceChannel" value={serviceChannelId} onChange={(event) => setServiceChannelId(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">Selecciona un medio</option>{catalogs.serviceChannels.map((channel) => <option key={channel.id} value={channel.id} disabled={(!channel.isActive && channel.id !== attention.serviceChannelId) || channel.category !== attention.serviceChannel.category}>{channel.name} — {channel.detail}{!channel.isActive ? " (inhabilitado)" : ""}</option>)}</select><p className="mt-1 text-xs text-gray-500">Puedes cambiar el medio, pero no su categoría histórica.</p></div>
           <div className="mt-5"><span className="block text-sm font-medium text-gray-700">¿Quién solicita la atención? *</span><div className="mt-2 flex flex-wrap gap-5"><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "APPLICANT"} onChange={() => handleRequesterChange("APPLICANT")} /> Postulante</label><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "RELATIVE"} onChange={() => handleRequesterChange("RELATIVE")} /> Familiar</label><label className="inline-flex items-center gap-2 text-sm"><input type="radio" checked={requesterType === "OTHER"} onChange={() => handleRequesterChange("OTHER")} /> Otro</label></div></div>
           {requesterType === "RELATIVE" && <div className="mt-4"><label htmlFor="kinship" className="block text-sm font-medium text-gray-700">Parentesco *</label><select id="kinship" value={kinshipTypeId} onChange={(event) => { setKinshipTypeId(event.target.value); setKinshipDetail(""); }} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">Selecciona el parentesco</option>{catalogs.kinshipTypes.map((kinship) => <option key={kinship.id} value={kinship.id} disabled={!kinship.isActive && kinship.id !== attention.kinshipTypeId}>{kinship.name}{!kinship.isActive ? " (inhabilitado)" : ""}</option>)}</select>{isOtherKinship && <div className="mt-3"><label htmlFor="kinshipDetail" className="block text-sm font-medium text-gray-700">Especifica el parentesco *</label><input id="kinshipDetail" value={kinshipDetail} onChange={(event) => setKinshipDetail(event.target.value)} required maxLength={150} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>}</div>}
           {requesterType === "OTHER" && <div className="mt-4"><label htmlFor="requesterDetail" className="block text-sm font-medium text-gray-700">Especifica quién realiza la consulta *</label><input id="requesterDetail" value={requesterDetail} onChange={(event) => setRequesterDetail(event.target.value)} required maxLength={150} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>}
         </section>
+
+        {selectedServiceChannel?.category === "EMAIL" && (
+          <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+            <h2 className="font-semibold text-gray-900">Información del correo</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div><label htmlFor="emailReceivedAt" className="block text-sm font-medium text-gray-700">Fecha y hora de recepción{attention.emailOriginalText ? " *" : ""}</label><input id="emailReceivedAt" type="datetime-local" max={currentDateTimeLocalInput()} value={emailReceivedAt} onChange={(event) => setEmailReceivedAt(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+              <div><label htmlFor="emailRespondedAt" className="block text-sm font-medium text-gray-700">Fecha y hora de respuesta</label><input id="emailRespondedAt" type="datetime-local" max={currentDateTimeLocalInput()} value={emailRespondedAt} onChange={(event) => setEmailRespondedAt(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /><p className="mt-1 text-xs text-gray-500">Vacío mientras la consulta siga sin respuesta.</p></div>
+            </div>
+            {attention.emailOriginalText ? <div className="mt-5"><h3 className="text-sm font-medium text-gray-700">Mensaje original importado</h3><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-gray-50 p-4 font-sans text-sm leading-6 text-gray-700">{attention.emailOriginalText}</pre><p className="mt-2 text-xs text-gray-500">Se conserva como texto plano y no se modifica desde la edición general.</p></div> : <p className="mt-5 rounded-md bg-gray-50 p-3 text-sm text-gray-500">Atención histórica sin mensaje original almacenado.</p>}
+            {attention.emailAttachments.length > 0 && <div className="mt-5"><h3 className="text-sm font-medium text-gray-700">Adjuntos informados</h3><ul className="mt-2 space-y-2 text-sm text-gray-600">{attention.emailAttachments.map((attachment, index) => <li key={`${attachment.name}-${index}`} className="rounded-md border px-3 py-2">{attachment.name}{attachment.sizeLabel ? ` · ${attachment.sizeLabel}` : ""}{attachment.typeLabel ? ` · ${attachment.typeLabel}` : ""}</li>)}</ul></div>}
+          </section>
+        )}
 
         <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900">Temas consultados *</h2>

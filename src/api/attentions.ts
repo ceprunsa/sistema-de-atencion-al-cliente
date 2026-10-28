@@ -3,6 +3,7 @@ import type { Database } from "../supabase/types";
 import type {
   Area,
   AdmissionProcess,
+  AttentionCreationOrigin,
   AttentionRegistrationState,
   AttentionListItem,
   Client,
@@ -13,6 +14,8 @@ import type {
   CreatedCustomerAttention,
   CustomerAttentionDetail,
   CreateCustomerAttentionInput,
+  EmailAttentionDuplicate,
+  EmailAttachmentMetadata,
   KinshipType,
   NewAttentionCatalogs,
   PaginatedResponse,
@@ -88,6 +91,20 @@ const mapClient = (row: ClientRow): Client => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
+
+const mapEmailAttachments = (value: Database["public"]["Tables"]["customer_attentions"]["Row"]["email_attachments"]): EmailAttachmentMetadata[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const name = typeof item.name === "string" ? item.name : "";
+    if (!name) return [];
+    return [{
+      name,
+      sizeLabel: typeof item.sizeLabel === "string" ? item.sizeLabel : null,
+      typeLabel: typeof item.typeLabel === "string" ? item.typeLabel : null,
+    }];
+  });
+};
 
 const getErrorMessage = (error: { code?: string; message?: string }) => {
   if (error.code === "PGRST202") {
@@ -211,6 +228,13 @@ export const attentionsApi = {
       requesterDetail: row.requester_detail,
       kinshipDetail: row.kinship_detail,
       conclusion: row.conclusion,
+      creationOrigin: row.creation_origin as AttentionCreationOrigin,
+      emailReceivedAt: row.email_received_at,
+      emailRespondedAt: row.email_responded_at,
+      emailOriginalText: row.email_original_text,
+      emailAttachments: mapEmailAttachments(row.email_attachments),
+      sourceMessageKeyHash: row.source_message_key_hash,
+      sourceFingerprint: row.source_fingerprint,
       status: row.status as CustomerAttentionDetail["status"],
       createdById: row.created_by,
       createdByName: row.created_by_name,
@@ -486,7 +510,7 @@ export const attentionsApi = {
   create: async (
     values: CreateCustomerAttentionInput,
   ): Promise<CreatedCustomerAttention> => {
-    const { data, error } = await supabase.rpc("create_customer_attention_v3", {
+    const { data, error } = await supabase.rpc("create_customer_attention_v4", {
       p_client: {
         id: values.client.id || null,
         create_new: values.client.createNew === true,
@@ -509,10 +533,21 @@ export const attentionsApi = {
       p_destination_area_id: values.destinationAreaId || null,
       p_requester_detail: values.requesterDetail || null,
       p_kinship_detail: values.kinshipDetail || null,
+      p_creation_origin: values.creationOrigin || "WEB",
+      p_email_received_at: values.emailReceivedAt || null,
+      p_email_responded_at: values.emailRespondedAt || null,
+      p_email_original_text: values.emailOriginalText || null,
+      p_email_attachments: (values.emailAttachments || []).map((attachment) => ({
+        name: attachment.name,
+        sizeLabel: attachment.sizeLabel ?? null,
+        typeLabel: attachment.typeLabel ?? null,
+      })),
+      p_source_message_key_hash: values.sourceMessageKeyHash || null,
+      p_source_fingerprint: values.sourceFingerprint || null,
     });
 
     if (error?.code === "PGRST202") {
-      throw new Error("Las etiquetas de procesos no están instaladas. Ejecuta el SQL 13 en Supabase.");
+      throw new Error("Los metadatos de correo no están instalados. Ejecuta el SQL 16 en Supabase.");
     }
     if (error) throw new Error(getErrorMessage(error));
 
@@ -524,8 +559,35 @@ export const attentionsApi = {
     return { id: result.id, racCode: result.rac_code };
   },
 
+  findEmailDuplicates: async ({
+    messageKeyHash,
+    fingerprint,
+  }: {
+    messageKeyHash: string | null;
+    fingerprint: string | null;
+  }): Promise<EmailAttentionDuplicate[]> => {
+    const { data, error } = await supabase.rpc("find_email_attention_duplicates", {
+      p_source_message_key_hash: messageKeyHash,
+      p_source_fingerprint: fingerprint,
+    });
+    if (error?.code === "PGRST202") {
+      throw new Error("La verificación de correos duplicados no está instalada. Ejecuta el SQL 16 en Supabase.");
+    }
+    if (error) throw new Error(getErrorMessage(error));
+    const matches = (data || []).flatMap((row) => {
+      if (row.match_type !== "MESSAGE_KEY" && row.match_type !== "FINGERPRINT") return [];
+      return [{
+        id: row.id,
+        racCode: row.rac_code,
+        createdAt: row.created_at,
+        matchType: row.match_type as EmailAttentionDuplicate["matchType"],
+      }];
+    });
+    return [...new Map(matches.map((match) => [match.id, match])).values()];
+  },
+
   update: async (values: UpdateCustomerAttentionInput): Promise<void> => {
-    const { error } = await supabase.rpc("update_customer_attention_v3", {
+    const { error } = await supabase.rpc("update_customer_attention_v4", {
       p_attention_id: values.id,
       p_client: {
         dni: values.client.dni || null,
@@ -546,9 +608,22 @@ export const attentionsApi = {
       p_destination_area_id: values.destinationAreaId || null,
       p_requester_detail: values.requesterDetail || null,
       p_kinship_detail: values.kinshipDetail || null,
+      p_email_received_at: values.emailReceivedAt || null,
+      p_email_responded_at: values.emailRespondedAt || null,
     });
     if (error?.code === "PGRST202") {
-      throw new Error("Las etiquetas de procesos no están instaladas. Ejecuta el SQL 13 en Supabase.");
+      throw new Error("Los metadatos de correo no están instalados. Ejecuta el SQL 16 en Supabase.");
+    }
+    if (error) throw new Error(getErrorMessage(error));
+  },
+
+  setEmailResponseAt: async ({ id, respondedAt }: { id: string; respondedAt: string | null }): Promise<void> => {
+    const { error } = await supabase.rpc("set_email_attention_response_at", {
+      p_attention_id: id,
+      p_responded_at: respondedAt,
+    });
+    if (error?.code === "PGRST202") {
+      throw new Error("La actualización limitada de respuesta no está instalada. Ejecuta el SQL 16 en Supabase.");
     }
     if (error) throw new Error(getErrorMessage(error));
   },
