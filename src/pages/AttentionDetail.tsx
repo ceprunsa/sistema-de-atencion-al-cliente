@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, Ban, CalendarClock, Headphones, Mail, MapPin, Paperclip, Pencil, Send, ShieldX, Star, UserRound, X } from "lucide-react";
+import { ArrowLeft, Ban, CalendarClock, ExternalLink, Headphones, Mail, MapPin, Paperclip, Pencil, Send, ShieldX, Star, UserRound, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../hooks/useAuth";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
 import { formatLocalDate } from "../utils/dateUtils";
 import { formatAdmissionProcess } from "../utils/admissionProcesses";
-import { currentDateTimeLocalInput, toDateTimeLocalInput, toOptionalIsoDateTime } from "../utils/emailAttention";
+import { currentDateTimeLocalInput, formatLimaDateTime, toDateTimeLocalInput, toOptionalIsoDateTime } from "../utils/emailAttention";
 
 const AttentionDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +52,7 @@ const AttentionDetail = () => {
   const canManageEmailResponse =
     attention.status === "ACTIVE" &&
     attention.serviceChannel.category === "EMAIL" &&
+    attention.gmailImportVersion !== 2 &&
     (isAdmin || attention.createdById === user?.id) &&
     (isAdmin || !attention.emailRespondedAt);
 
@@ -158,8 +159,8 @@ const AttentionDetail = () => {
             <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${attention.creationOrigin === "GMAIL_CHROME_EXTENSION" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{attention.creationOrigin === "GMAIL_CHROME_EXTENSION" ? "Importado desde la extensión de Gmail" : "Registrado desde el sistema"}</span>
           </div>
           <dl className="mt-4 grid gap-4 text-sm md:grid-cols-2">
-            <div><dt className="text-gray-500">Fecha de recepción</dt><dd className="mt-1 font-medium text-gray-900">{attention.emailReceivedAt ? formatLocalDate(attention.emailReceivedAt) : "No registrada (atención histórica)"}</dd></div>
-            <div><dt className="text-gray-500">Fecha de respuesta o resolución</dt><dd className={`mt-1 font-medium ${attention.emailRespondedAt ? "text-green-700" : "text-amber-700"}`}>{attention.emailRespondedAt ? formatLocalDate(attention.emailRespondedAt) : "Pendiente de respuesta"}</dd></div>
+            <div><dt className="text-gray-500">Fecha de recepción</dt><dd className="mt-1 font-medium text-gray-900">{attention.emailReceivedAt ? formatLimaDateTime(attention.emailReceivedAt) : "No registrada (atención histórica)"}</dd>{attention.emailReceivedAtSource && <p className="mt-1 text-xs text-gray-400">Fuente: {attention.emailReceivedAtSource}</p>}</div>
+            <div><dt className="text-gray-500">Fecha de respuesta o resolución</dt><dd className={`mt-1 font-medium ${attention.emailRespondedAt ? "text-green-700" : "text-amber-700"}`}>{attention.emailRespondedAt ? formatLimaDateTime(attention.emailRespondedAt) : "Pendiente de respuesta"}</dd>{attention.emailRespondedAtSource && <p className="mt-1 text-xs text-gray-400">Fuente: {attention.emailRespondedAtSource}</p>}</div>
           </dl>
           {canManageEmailResponse && attention.emailReceivedAt && <button type="button" onClick={openEmailResponseModal} className="btn btn-secondary mt-4 inline-flex">{attention.emailRespondedAt ? "Corregir fecha de respuesta" : "Registrar fecha de respuesta"}</button>}
 
@@ -167,6 +168,19 @@ const AttentionDetail = () => {
             <h3 className="text-sm font-medium text-gray-800">Asunto y mensaje original</h3>
             {attention.emailOriginalText ? <pre className="mt-2 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md bg-gray-50 p-4 font-sans text-sm leading-6 text-gray-700">{attention.emailOriginalText}</pre> : <p className="mt-2 text-sm text-gray-500">Esta atención histórica no conserva el mensaje original.</p>}
           </div>
+
+          {attention.gmailImportVersion === 2 && (
+            <div className="mt-5 border-t pt-5">
+              <h3 className="text-sm font-medium text-gray-800">Respuesta final importada</h3>
+              <pre className="mt-2 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md bg-green-50 p-4 font-sans text-sm leading-6 text-gray-700">{attention.emailResponseOriginalText}</pre>
+              <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                <div><dt className="text-gray-500">Buzón que respondió</dt><dd className="font-medium text-gray-900">{attention.emailResponseMailboxName || "Sin denominación"} · {attention.emailResponseMailboxEmail}</dd></div>
+                <div><dt className="text-gray-500">Modalidad</dt><dd className="font-medium text-gray-900">{attention.emailResponseIsDelegated ? "Buzón delegado" : "Buzón normal"}</dd></div>
+                {attention.emailResponseIsDelegated && <div className="md:col-span-2"><dt className="text-gray-500">Correo del personal delegado</dt><dd className="font-medium text-gray-900">{attention.emailResponseDelegateEmail}</dd></div>}
+              </dl>
+              {attention.gmailConversationUrl && <><a href={attention.gmailConversationUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center text-sm font-medium text-blue-700 hover:underline"><ExternalLink size={16} className="mr-2" />Abrir conversación en Gmail</a><p className="mt-1 text-xs text-gray-500">Requiere acceso al buzón y puede no permanecer disponible en cuentas delegadas.</p></>}
+            </div>
+          )}
 
           {attention.emailAttachments.length > 0 && (
             <div className="mt-5">

@@ -324,6 +324,17 @@ export interface Database {
           email_attachments: Json;
           source_message_key_hash: string | null;
           source_fingerprint: string | null;
+          gmail_import_version: number | null;
+          email_response_original_text: string | null;
+          email_response_mailbox_email: string | null;
+          email_response_mailbox_name: string | null;
+          email_response_delegate_email: string | null;
+          email_response_is_delegated: boolean;
+          email_received_at_source: string | null;
+          email_responded_at_source: string | null;
+          gmail_conversation_url: string | null;
+          source_response_message_key_hash: string | null;
+          source_exchange_fingerprint: string | null;
           status: string;
           created_by: string | null;
           created_by_name: string;
@@ -356,6 +367,17 @@ export interface Database {
           email_attachments?: Json;
           source_message_key_hash?: string | null;
           source_fingerprint?: string | null;
+          gmail_import_version?: number | null;
+          email_response_original_text?: string | null;
+          email_response_mailbox_email?: string | null;
+          email_response_mailbox_name?: string | null;
+          email_response_delegate_email?: string | null;
+          email_response_is_delegated?: boolean;
+          email_received_at_source?: string | null;
+          email_responded_at_source?: string | null;
+          gmail_conversation_url?: string | null;
+          source_response_message_key_hash?: string | null;
+          source_exchange_fingerprint?: string | null;
           status?: string;
           created_by?: string | null;
           created_by_name: string;
@@ -388,6 +410,17 @@ export interface Database {
           email_attachments?: Json;
           source_message_key_hash?: string | null;
           source_fingerprint?: string | null;
+          gmail_import_version?: number | null;
+          email_response_original_text?: string | null;
+          email_response_mailbox_email?: string | null;
+          email_response_mailbox_name?: string | null;
+          email_response_delegate_email?: string | null;
+          email_response_is_delegated?: boolean;
+          email_received_at_source?: string | null;
+          email_responded_at_source?: string | null;
+          gmail_conversation_url?: string | null;
+          source_response_message_key_hash?: string | null;
+          source_exchange_fingerprint?: string | null;
           status?: string;
           created_by?: string | null;
           created_by_name?: string;
@@ -885,6 +918,40 @@ export interface Database {
         };
         Returns: Json;
       };
+      create_customer_attention_v6: {
+        Args: {
+          p_client: Json;
+          p_service_channel_id: string;
+          p_requester_type: string;
+          p_conclusion: string;
+          p_topics: Json;
+          p_client_contact_email: string | null;
+          p_admission_process_ids: Json;
+          p_kinship_type_id?: string | null;
+          p_destination_area_id?: string | null;
+          p_requester_detail?: string | null;
+          p_kinship_detail?: string | null;
+          p_creation_origin?: string;
+          p_email_received_at?: string | null;
+          p_email_responded_at?: string | null;
+          p_email_original_text?: string | null;
+          p_email_attachments?: Json;
+          p_source_message_key_hash?: string | null;
+          p_source_fingerprint?: string | null;
+          p_gmail_import_version?: number | null;
+          p_email_response_original_text?: string | null;
+          p_email_response_mailbox_email?: string | null;
+          p_email_response_mailbox_name?: string | null;
+          p_email_response_delegate_email?: string | null;
+          p_email_response_is_delegated?: boolean;
+          p_email_received_at_source?: string | null;
+          p_email_responded_at_source?: string | null;
+          p_gmail_conversation_url?: string | null;
+          p_source_response_message_key_hash?: string | null;
+          p_source_exchange_fingerprint?: string | null;
+        };
+        Returns: Json;
+      };
       update_customer_attention_v3: {
         Args: {
           p_attention_id: string;
@@ -927,6 +994,19 @@ export interface Database {
         Args: {
           p_source_message_key_hash?: string | null;
           p_source_fingerprint?: string | null;
+        };
+        Returns: Array<{
+          id: string;
+          rac_code: string;
+          created_at: string;
+          match_type: string;
+        }>;
+      };
+      find_email_exchange_duplicates: {
+        Args: {
+          p_source_message_key_hash?: string | null;
+          p_source_response_message_key_hash?: string | null;
+          p_source_exchange_fingerprint?: string | null;
         };
         Returns: Array<{
           id: string;

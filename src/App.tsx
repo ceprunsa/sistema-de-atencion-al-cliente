@@ -9,6 +9,8 @@ import { useState, useEffect } from "react";
 import appConfig from "./config/appConfig";
 import { surveysApi } from "./api/surveys";
 
+const RAC_EXTENSION_MESSAGE_SOURCE = "CEPRUNSA_RAC_APP";
+
 function App() {
   const { user, loading, initialized } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -16,6 +18,20 @@ function App() {
   const location = useLocation();
   const [localLoading, setLocalLoading] = useState(true);
   const [checkingTabletSession, setCheckingTabletSession] = useState(false);
+
+  useEffect(() => {
+    const syncExtensionIdentity = () => {
+      window.postMessage({
+        source: RAC_EXTENSION_MESSAGE_SOURCE,
+        type: "RAC_IDENTITY_SYNC",
+        identity: user ? { email: user.email } : null,
+      }, window.location.origin);
+    };
+
+    syncExtensionIdentity();
+    const intervalId = window.setInterval(syncExtensionIdentity, 10 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [user]);
 
   // Efecto para manejar la redirección y el estado de carga local
   useEffect(() => {

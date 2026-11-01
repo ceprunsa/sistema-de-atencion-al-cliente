@@ -41,7 +41,13 @@ export interface EmailAttentionDuplicate {
   id: string;
   racCode: string;
   createdAt: string;
-  matchType: "MESSAGE_KEY" | "FINGERPRINT";
+  matchType:
+    | "MESSAGE_KEY"
+    | "FINGERPRINT"
+    | "EXCHANGE"
+    | "MESSAGE_PAIR"
+    | "RECEIVED_MESSAGE"
+    | "RESPONSE_MESSAGE";
 }
 export type AdmissionProcessPhase =
   | "CEPRUNSA_I"
@@ -231,6 +237,17 @@ export interface CustomerAttention {
   emailAttachments: EmailAttachmentMetadata[];
   sourceMessageKeyHash: string | null;
   sourceFingerprint: string | null;
+  gmailImportVersion: number | null;
+  emailResponseOriginalText: string | null;
+  emailResponseMailboxEmail: string | null;
+  emailResponseMailboxName: string | null;
+  emailResponseDelegateEmail: string | null;
+  emailResponseIsDelegated: boolean;
+  emailReceivedAtSource: string | null;
+  emailRespondedAtSource: string | null;
+  gmailConversationUrl: string | null;
+  sourceResponseMessageKeyHash: string | null;
+  sourceExchangeFingerprint: string | null;
   status: CustomerAttentionStatus;
   createdById: string | null;
   createdByName: string;
@@ -269,6 +286,17 @@ export interface CreateCustomerAttentionInput {
   emailAttachments?: EmailAttachmentMetadata[];
   sourceMessageKeyHash?: string | null;
   sourceFingerprint?: string | null;
+  gmailImportVersion?: number | null;
+  emailResponseOriginalText?: string | null;
+  emailResponseMailboxEmail?: string | null;
+  emailResponseMailboxName?: string | null;
+  emailResponseDelegateEmail?: string | null;
+  emailResponseIsDelegated?: boolean;
+  emailReceivedAtSource?: string | null;
+  emailRespondedAtSource?: string | null;
+  gmailConversationUrl?: string | null;
+  sourceResponseMessageKeyHash?: string | null;
+  sourceExchangeFingerprint?: string | null;
   topics: AttentionTopicSelection[];
   destinationAreaId?: string | null;
   admissionProcessIds: string[];

@@ -23,6 +23,10 @@ export const useNewAttention = () => {
     mutationFn: attentionsApi.findEmailDuplicates,
   });
 
+  const exchangeDuplicateMutation = useMutation({
+    mutationFn: attentionsApi.findEmailExchangeDuplicates,
+  });
+
   return {
     catalogs: catalogsQuery.data,
     isLoadingCatalogs: catalogsQuery.isLoading,
@@ -34,6 +38,7 @@ export const useNewAttention = () => {
     createAttention: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     findEmailDuplicates: duplicateMutation.mutateAsync,
-    isCheckingEmailDuplicates: duplicateMutation.isPending,
+    findEmailExchangeDuplicates: exchangeDuplicateMutation.mutateAsync,
+    isCheckingEmailDuplicates: duplicateMutation.isPending || exchangeDuplicateMutation.isPending,
   };
 };

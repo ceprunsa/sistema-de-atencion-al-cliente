@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "verify:extension": "node scripts/verify-chrome-extension.mjs",
+    "build:extension:local": "node scripts/build-chrome-extension.mjs local",
+    "build:extension:production": "node scripts/build-chrome-extension.mjs production",
+    "build:extension": "node scripts/build-chrome-extension.mjs all",
+    "verify:extension": "npm run build:extension && node scripts/verify-chrome-extension.mjs",
     "verify": "npm run lint && npm run build && npm run verify:extension",
     "preview": "vite preview"
   },

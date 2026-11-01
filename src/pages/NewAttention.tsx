@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import SpeechConclusionField from "../components/SpeechConclusionField";
+import ClientIdentityCard from "../components/ClientIdentityCard";
 import { surveysApi } from "../api/surveys";
 import { useAuth } from "../hooks/useAuth";
 import { useNewAttention } from "../hooks/useNewAttention";
@@ -45,6 +46,11 @@ type ClientForm = {
   phone: string;
 };
 
+type EmailDniConflict = {
+  client: Client;
+  queriedEmail: string;
+};
+
 const EMPTY_CLIENT: ClientForm = {
   displayName: "",
   firstName: "",
@@ -71,6 +77,7 @@ const NewAttention = () => {
     createAttention,
     isCreating,
     findEmailDuplicates,
+    findEmailExchangeDuplicates,
     isCheckingEmailDuplicates,
   } = useNewAttention();
   const { gmailImport, importError, consumeImport, cancelImport } = useGmailAttentionImport();
@@ -81,6 +88,7 @@ const NewAttention = () => {
   const [existingClient, setExistingClient] = useState<Client | null>(null);
   const [emailCandidates, setEmailCandidates] = useState<Client[]>([]);
   const [emailChoiceMade, setEmailChoiceMade] = useState(false);
+  const [emailDniConflict, setEmailDniConflict] = useState<EmailDniConflict | null>(null);
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   const [serviceChannelId, setServiceChannelId] = useState("");
   const [requesterType, setRequesterType] =
@@ -100,6 +108,17 @@ const NewAttention = () => {
   const [emailAttachments, setEmailAttachments] = useState<Array<{ name: string; sizeLabel?: string | null; typeLabel?: string | null }>>([]);
   const [sourceMessageKeyHash, setSourceMessageKeyHash] = useState<string | null>(null);
   const [sourceFingerprint, setSourceFingerprint] = useState<string | null>(null);
+  const [gmailImportVersion, setGmailImportVersion] = useState<number | null>(null);
+  const [emailResponseOriginalText, setEmailResponseOriginalText] = useState("");
+  const [emailResponseMailboxEmail, setEmailResponseMailboxEmail] = useState("");
+  const [emailResponseMailboxName, setEmailResponseMailboxName] = useState("");
+  const [emailResponseDelegateEmail, setEmailResponseDelegateEmail] = useState("");
+  const [emailResponseIsDelegated, setEmailResponseIsDelegated] = useState(false);
+  const [emailReceivedAtSource, setEmailReceivedAtSource] = useState("");
+  const [emailRespondedAtSource, setEmailRespondedAtSource] = useState("");
+  const [gmailConversationUrl, setGmailConversationUrl] = useState("");
+  const [sourceResponseMessageKeyHash, setSourceResponseMessageKeyHash] = useState<string | null>(null);
+  const [sourceExchangeFingerprint, setSourceExchangeFingerprint] = useState<string | null>(null);
   const [duplicateMatches, setDuplicateMatches] = useState<EmailAttentionDuplicate[]>([]);
   const [duplicateCheckError, setDuplicateCheckError] = useState<string | null>(null);
   const [pendingAttention, setPendingAttention] = useState<CreateCustomerAttentionInput | null>(null);
@@ -174,21 +193,25 @@ const NewAttention = () => {
   );
   const isEmailChannel = selectedServiceChannel?.category === "EMAIL";
   const emailOriginalText = buildEmailOriginalText(emailSubject, emailBody);
+  const isGmailExchangeImport = creationOrigin === "GMAIL_CHROME_EXTENSION" && gmailImportVersion === 2;
 
   useEffect(() => {
     if (!isEmailChannel) return;
+    const suggestedConclusion = isGmailExchangeImport
+      ? emailResponseOriginalText
+      : emailOriginalText;
     setConclusion((current) => {
       if (!current.trim() || current === autoEmailConclusionRef.current) {
-        autoEmailConclusionRef.current = emailOriginalText;
-        return emailOriginalText;
+        autoEmailConclusionRef.current = suggestedConclusion;
+        return suggestedConclusion;
       }
       return current;
     });
-  }, [emailOriginalText, isEmailChannel]);
+  }, [emailOriginalText, emailResponseOriginalText, isEmailChannel, isGmailExchangeImport]);
 
   useEffect(() => {
-    if (!gmailImport || !catalogs || createdAttention || appliedImportRef.current === gmailImport.fingerprint) return;
-    appliedImportRef.current = gmailImport.fingerprint;
+    if (!gmailImport || !catalogs || createdAttention || appliedImportRef.current === gmailImport.exchangeFingerprint) return;
+    appliedImportRef.current = gmailImport.exchangeFingerprint;
     const emailChannels = catalogs.serviceChannels.filter((channel) => channel.category === "EMAIL");
     setServiceChannelId(emailChannels.length === 1 ? emailChannels[0].id : "");
     setLookupCompleted(false);
@@ -197,21 +220,33 @@ const NewAttention = () => {
     setDni("");
     setClient({
       ...EMPTY_CLIENT,
-      displayName: gmailImport.senderName,
-      email: gmailImport.senderEmail.trim().toLowerCase(),
+      displayName: gmailImport.received.senderName,
+      email: gmailImport.received.senderEmail.trim().toLowerCase(),
     });
-    setEmailReceivedAt(toDateTimeLocalInput(gmailImport.receivedAtIso));
-    setEmailRespondedAt("");
-    setEmailSubject(gmailImport.subject);
-    setEmailBody(gmailImport.body);
-    setEmailAttachments(gmailImport.attachments);
+    setEmailReceivedAt(toDateTimeLocalInput(gmailImport.received.receivedAtIso));
+    setEmailRespondedAt(toDateTimeLocalInput(gmailImport.response.respondedAtIso));
+    setEmailSubject(gmailImport.received.subject);
+    setEmailBody(gmailImport.received.body);
+    setEmailAttachments(gmailImport.received.attachments);
     setCreationOrigin("GMAIL_CHROME_EXTENSION");
-    setSourceMessageKeyHash(gmailImport.messageKeyHash);
-    setSourceFingerprint(gmailImport.fingerprint);
+    setSourceMessageKeyHash(gmailImport.received.messageKeyHash);
+    setSourceFingerprint(gmailImport.received.fingerprint);
+    setGmailImportVersion(2);
+    setEmailResponseOriginalText(gmailImport.response.body);
+    setEmailResponseMailboxEmail(gmailImport.response.mailboxEmail);
+    setEmailResponseMailboxName(gmailImport.response.mailboxName);
+    setEmailResponseDelegateEmail(gmailImport.response.delegateEmail || "");
+    setEmailResponseIsDelegated(gmailImport.response.isDelegated);
+    setEmailReceivedAtSource(gmailImport.received.receivedAtSource);
+    setEmailRespondedAtSource(gmailImport.response.respondedAtSource);
+    setGmailConversationUrl(gmailImport.conversationUrl);
+    setSourceResponseMessageKeyHash(gmailImport.response.messageKeyHash);
+    setSourceExchangeFingerprint(gmailImport.exchangeFingerprint);
     setEmailCandidates([]);
     setEmailChoiceMade(false);
+    setEmailDniConflict(null);
 
-    const normalizedEmail = gmailImport.senderEmail.trim().toLowerCase();
+    const normalizedEmail = gmailImport.received.senderEmail.trim().toLowerCase();
     if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(normalizedEmail)) {
       void findClientsByEmail(normalizedEmail).then((matches) => {
         setEmailCandidates(matches);
@@ -228,6 +263,7 @@ const NewAttention = () => {
     setExistingClient(null);
     setEmailCandidates([]);
     setEmailChoiceMade(false);
+    setEmailDniConflict(null);
     setClient(EMPTY_CLIENT);
   };
 
@@ -250,6 +286,17 @@ const NewAttention = () => {
     setCreationOrigin("WEB");
     setSourceMessageKeyHash(null);
     setSourceFingerprint(null);
+    setGmailImportVersion(null);
+    setEmailResponseOriginalText("");
+    setEmailResponseMailboxEmail("");
+    setEmailResponseMailboxName("");
+    setEmailResponseDelegateEmail("");
+    setEmailResponseIsDelegated(false);
+    setEmailReceivedAtSource("");
+    setEmailRespondedAtSource("");
+    setGmailConversationUrl("");
+    setSourceResponseMessageKeyHash(null);
+    setSourceExchangeFingerprint(null);
     setDuplicateMatches([]);
     setDuplicateCheckError(null);
     setPendingAttention(null);
@@ -265,11 +312,7 @@ const NewAttention = () => {
     setDni(value.replace(/\D/g, "").slice(0, 8));
     setLookupCompleted(false);
     setLookupSource(null);
-    setExistingClient(null);
-    if (isEmailChannel) {
-      setEmailCandidates([]);
-      setEmailChoiceMade(false);
-    }
+    setEmailDniConflict(null);
     setCreatedAttention(null);
   };
 
@@ -285,22 +328,36 @@ const NewAttention = () => {
       setLookupSource(result.source);
       if (result.source === "LOCAL") {
         const found = result.client;
+        if (isEmailChannel) {
+          const queriedEmail = client.email.trim().toLowerCase();
+          const storedEmail = found.email?.trim().toLowerCase() || "";
+          if (!storedEmail || storedEmail !== queriedEmail) {
+            setExistingClient(null);
+            setEmailChoiceMade(false);
+            setEmailDniConflict({ client: found, queriedEmail });
+            toast("El DNI pertenece a un cliente con otro correo. Elige qué dato debe conservarse.", { icon: "ℹ️" });
+            return;
+          }
+          selectEmailClient(found);
+          toast.success("Cliente encontrado por DNI. Sus datos registrados se conservarán.");
+          return;
+        }
         setExistingClient(found);
-        if (isEmailChannel) setEmailChoiceMade(true);
+        setEmailDniConflict(null);
         setClient({
-          displayName: isEmailChannel ? client.displayName : found.displayName,
+          displayName: found.displayName,
           firstName: found.firstName || "",
           middleName: found.middleName || "",
           paternalSurname: found.paternalSurname || "",
           maternalSurname: found.maternalSurname || "",
-          email: isEmailChannel ? client.email : found.email || "",
-          phone: isEmailChannel ? client.phone : found.phone || "",
+          email: found.email || "",
+          phone: found.phone || "",
         });
-        toast.success(isEmailChannel
-          ? "DNI encontrado. Se completaron los nombres; confirma aparte qué cliente corresponde al correo."
-          : "Cliente encontrado en el sistema. Sus datos fueron cargados.");
+        toast.success("Cliente encontrado en el sistema. Sus datos fueron cargados.");
       } else if (result.source === "EXTERNAL") {
         setExistingClient(null);
+        setEmailDniConflict(null);
+        if (isEmailChannel) setEmailChoiceMade(true);
         setClient({
           displayName: isEmailChannel ? client.displayName : [result.person.firstName, result.person.middleName, result.person.paternalSurname, result.person.maternalSurname].filter(Boolean).join(" "),
           firstName: result.person.firstName,
@@ -313,11 +370,15 @@ const NewAttention = () => {
         toast.success("DNI encontrado. Revisa los datos antes de registrar la atención.");
       } else {
         setExistingClient(null);
+        setEmailDniConflict(null);
+        if (isEmailChannel) setEmailChoiceMade(true);
         if (!isEmailChannel) setClient(EMPTY_CLIENT);
         toast(result.message, { icon: "ℹ️" });
       }
     } catch (error) {
       setExistingClient(null);
+      setEmailDniConflict(null);
+      if (isEmailChannel) setEmailChoiceMade(true);
       if (!isEmailChannel) setClient(EMPTY_CLIENT);
       setLookupCompleted(true);
       setLookupSource("MANUAL");
@@ -331,7 +392,22 @@ const NewAttention = () => {
       setEmailCandidates([]);
       setEmailChoiceMade(false);
       setExistingClient(null);
+      setEmailDniConflict(null);
+      setDni("");
+      setLookupCompleted(false);
+      setLookupSource(null);
     }
+  };
+
+  const chooseNewEmailClient = (email = client.email, displayName = client.displayName) => {
+    setExistingClient(null);
+    setEmailCandidates([]);
+    setEmailChoiceMade(true);
+    setEmailDniConflict(null);
+    setDni("");
+    setLookupCompleted(false);
+    setLookupSource(null);
+    setClient({ ...EMPTY_CLIENT, displayName, email });
   };
 
   const handleSearchClientsByEmail = async () => {
@@ -343,8 +419,17 @@ const NewAttention = () => {
     try {
       const matches = await findClientsByEmail(email);
       setEmailCandidates(matches);
-      setEmailChoiceMade(matches.length === 0);
       setExistingClient(null);
+      setEmailDniConflict(null);
+      setDni("");
+      setLookupCompleted(false);
+      setLookupSource(null);
+      if (matches.length === 0) {
+        chooseNewEmailClient(email, client.displayName);
+      } else {
+        setEmailChoiceMade(false);
+        setClient((current) => ({ ...EMPTY_CLIENT, displayName: current.displayName, email }));
+      }
       if (matches.length === 0) toast.success("No hay coincidencias. Se creará un cliente nuevo.");
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -354,6 +439,10 @@ const NewAttention = () => {
   const selectEmailClient = (found: Client) => {
     setExistingClient(found);
     setEmailChoiceMade(true);
+    setEmailDniConflict(null);
+    setEmailCandidates([]);
+    setLookupCompleted(true);
+    setLookupSource("LOCAL");
     setDni(found.dni || dni);
     setClient({
       displayName: found.displayName,
@@ -364,6 +453,11 @@ const NewAttention = () => {
       email: found.email || client.email,
       phone: found.phone || "",
     });
+  };
+
+  const replaceEmailForDniClient = () => {
+    if (!emailDniConflict) return;
+    selectEmailClient({ ...emailDniConflict.client, email: emailDniConflict.queriedEmail });
   };
 
   const toggleTopic = (topicId: string) => {
@@ -482,6 +576,38 @@ const NewAttention = () => {
         toast.error("La fecha de respuesta no puede estar en el futuro.");
         return;
       }
+      if (isGmailExchangeImport) {
+        if (!respondedAt || new Date(respondedAt) <= new Date(receivedAt)) {
+          toast.error("La respuesta importada debe tener una fecha posterior a la recepción.");
+          return;
+        }
+        if (!emailResponseOriginalText.trim()) {
+          toast.error("La respuesta original seleccionada en Gmail es obligatoria.");
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailResponseMailboxEmail.trim())) {
+          toast.error("No se pudo validar la identidad del buzón que respondió.");
+          return;
+        }
+        if (emailResponseIsDelegated && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailResponseDelegateEmail.trim())) {
+          toast.error("La identidad del delegado es obligatoria para este intercambio.");
+          return;
+        }
+        if (!emailReceivedAtSource.trim() || !emailRespondedAtSource.trim()) {
+          toast.error("No se conservaron las fuentes verificadas de ambas fechas.");
+          return;
+        }
+        try {
+          if (new URL(gmailConversationUrl).origin !== "https://mail.google.com") throw new Error();
+        } catch {
+          toast.error("La referencia de la conversación Gmail no es válida.");
+          return;
+        }
+        if (!sourceMessageKeyHash || !sourceResponseMessageKeyHash || !sourceExchangeFingerprint) {
+          toast.error("Faltan las huellas verificadas del intercambio Gmail.");
+          return;
+        }
+      }
     } else if (!lookupCompleted) {
       toast.error("Primero busca el DNI del cliente.");
       return;
@@ -549,12 +675,42 @@ const NewAttention = () => {
         emailAttachments,
         sourceMessageKeyHash,
         sourceFingerprint,
+        gmailImportVersion,
+        emailResponseOriginalText: isGmailExchangeImport ? emailResponseOriginalText : null,
+        emailResponseMailboxEmail: isGmailExchangeImport ? emailResponseMailboxEmail : null,
+        emailResponseMailboxName: isGmailExchangeImport ? emailResponseMailboxName : null,
+        emailResponseDelegateEmail: isGmailExchangeImport && emailResponseIsDelegated ? emailResponseDelegateEmail : null,
+        emailResponseIsDelegated: isGmailExchangeImport && emailResponseIsDelegated,
+        emailReceivedAtSource: isGmailExchangeImport ? emailReceivedAtSource : null,
+        emailRespondedAtSource: isGmailExchangeImport ? emailRespondedAtSource : null,
+        gmailConversationUrl: isGmailExchangeImport ? gmailConversationUrl : null,
+        sourceResponseMessageKeyHash: isGmailExchangeImport ? sourceResponseMessageKeyHash : null,
+        sourceExchangeFingerprint: isGmailExchangeImport ? sourceExchangeFingerprint : null,
         topics: selectedTopics.map((topic) => ({ topicId: topic.id })),
         destinationAreaId: destinationAreaId || null,
         admissionProcessIds: selectedAdmissionProcessIds,
     };
 
-    if (creationOrigin === "GMAIL_CHROME_EXTENSION" && sourceFingerprint) {
+    if (isGmailExchangeImport && sourceExchangeFingerprint) {
+      try {
+        const matches = await findEmailExchangeDuplicates({
+          receivedMessageKeyHash: sourceMessageKeyHash,
+          responseMessageKeyHash: sourceResponseMessageKeyHash,
+          exchangeFingerprint: sourceExchangeFingerprint,
+        });
+        if (matches.length > 0) {
+          setDuplicateMatches(matches);
+          setDuplicateCheckError(null);
+          setPendingAttention(values);
+          return;
+        }
+      } catch (error) {
+        setDuplicateMatches([]);
+        setDuplicateCheckError(getErrorMessage(error));
+        setPendingAttention(values);
+        return;
+      }
+    } else if (creationOrigin === "GMAIL_CHROME_EXTENSION" && sourceFingerprint) {
       try {
         const matches = await findEmailDuplicates({
           messageKeyHash: sourceMessageKeyHash,
@@ -655,7 +811,6 @@ const NewAttention = () => {
     );
   }
 
-  const clientInputsDisabled = !lookupCompleted || !!existingClient;
   const clientReady = isEmailChannel ? emailChoiceMade : lookupCompleted;
 
   return (
@@ -671,11 +826,10 @@ const NewAttention = () => {
         {gmailImport && (
           <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div><p className="font-semibold">Correo recibido desde la extensión de Gmail</p><p className="mt-1 text-sm">Revisa todos los datos antes de guardar. La extensión no ha creado todavía ningún RAC.</p></div>
+              <div><p className="font-semibold">Intercambio respondido importado desde Gmail</p><p className="mt-1 text-sm">Revisa el mensaje recibido y la respuesta final seleccionada. La extensión todavía no ha creado ningún RAC.</p></div>
               <button type="button" onClick={() => { cancelImport(); resetForm(); }} className="text-sm font-medium text-red-700 hover:underline">Descartar importación</button>
             </div>
             {catalogs.serviceChannels.filter((channel) => channel.category === "EMAIL").length > 1 && <p className="mt-3 rounded-md bg-white/70 p-2 text-sm">Hay varios medios de correo activos. Selecciona manualmente cuál corresponde.</p>}
-            {gmailImport.receivedAtDisplay && !gmailImport.receivedAtIso && <p className="mt-2 text-sm">Fecha mostrada por Gmail: <strong>{gmailImport.receivedAtDisplay}</strong>. Debes completar manualmente la fecha exacta.</p>}
             {gmailImport.warnings.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{gmailImport.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
           </section>
         )}
@@ -699,6 +853,7 @@ const NewAttention = () => {
                   setExistingClient(null);
                   setEmailCandidates([]);
                   setEmailChoiceMade(false);
+                  setEmailDniConflict(null);
                   toast("Los datos escritos se conservaron; verifica los campos obligatorios del nuevo medio.", { icon: "ℹ️" });
                 }}
                 required
@@ -725,13 +880,13 @@ const NewAttention = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">Nombre o denominación del correo *</label>
-                  <input id="displayName" value={client.displayName} onChange={(event) => updateClient("displayName", event.target.value)} maxLength={250} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                  <input id="displayName" value={client.displayName} onChange={(event) => updateClient("displayName", event.target.value)} disabled={!!existingClient} maxLength={250} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
                 </div>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo electrónico *</label>
                   <div className="mt-1 flex gap-2">
-                    <input id="email" type="email" value={client.email} onChange={(event) => updateClient("email", event.target.value)} className="block min-w-0 flex-1 rounded-md border-gray-300 shadow-sm" />
-                    <button type="button" onClick={() => void handleSearchClientsByEmail()} disabled={isSearchingClientsByEmail} className="btn btn-secondary whitespace-nowrap">{isSearchingClientsByEmail ? "Buscando..." : "Buscar correo"}</button>
+                    <input id="email" type="email" value={client.email} onChange={(event) => updateClient("email", event.target.value)} disabled={!!existingClient} className="block min-w-0 flex-1 rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
+                    <button type="button" onClick={() => void handleSearchClientsByEmail()} disabled={isSearchingClientsByEmail || !!existingClient} className="btn btn-secondary whitespace-nowrap disabled:opacity-60">{isSearchingClientsByEmail ? "Buscando..." : "Buscar correo"}</button>
                   </div>
                 </div>
               </div>
@@ -740,44 +895,68 @@ const NewAttention = () => {
                   <p className="text-sm font-medium text-amber-900">Este correo coincide con uno o más clientes. Elige uno o crea un registro independiente.</p>
                   <div className="mt-3 space-y-2">
                     {emailCandidates.map((candidate) => (
-                      <button key={candidate.id} type="button" onClick={() => selectEmailClient(candidate)} className="block w-full rounded-md border border-amber-200 bg-white p-3 text-left text-sm hover:border-amber-400">
-                        <span className="font-medium">{candidate.displayName}</span>
-                        <span className="ml-2 text-gray-500">{candidate.dni ? `DNI ${candidate.dni}` : "Sin DNI"}</span>
+                      <button key={candidate.id} type="button" onClick={() => selectEmailClient(candidate)} className="block w-full rounded-md border border-amber-200 bg-white p-3 text-left hover:border-amber-400">
+                        <ClientIdentityCard client={candidate} compact />
                       </button>
                     ))}
                   </div>
-                  <button type="button" onClick={() => { setExistingClient(null); setEmailChoiceMade(true); }} className="mt-3 text-sm font-medium text-blue-700 hover:underline">Crear otro cliente con este mismo correo</button>
+                  <button type="button" onClick={() => chooseNewEmailClient()} className="mt-3 text-sm font-medium text-blue-700 hover:underline">Crear otro cliente con este mismo correo</button>
+                </div>
+              )}
+              {emailDniConflict && (
+                <div className="mt-4 rounded-md border border-orange-300 bg-orange-50 p-4">
+                  <p className="font-medium text-orange-900">El DNI pertenece a un cliente con otro correo.</p>
+                  <p className="mt-1 text-sm text-orange-800">Correo consultado: <strong>{emailDniConflict.queriedEmail}</strong>. Revisa el cliente y elige una acción explícita.</p>
+                  <div className="mt-3"><ClientIdentityCard client={emailDniConflict.client} /></div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {emailDniConflict.client.email && <button type="button" onClick={() => selectEmailClient(emailDniConflict.client)} className="btn btn-secondary">Conservar correo registrado</button>}
+                    <button type="button" onClick={replaceEmailForDniClient} className="btn btn-primary">Reemplazar por el correo consultado</button>
+                    <button type="button" onClick={() => chooseNewEmailClient(emailDniConflict.queriedEmail)} className="btn btn-secondary">Crear otro cliente sin este DNI</button>
+                  </div>
                 </div>
               )}
               {emailChoiceMade && (
-                <div className="mt-4 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800">
-                  {existingClient ? <UserCheck size={18} /> : <UserPlus size={18} />}
-                  <span className="flex-1">{existingClient ? `Se reutilizará a ${existingClient.displayName}.` : "Se creará un cliente independiente."}</span>
-                  <button type="button" onClick={() => { setEmailChoiceMade(false); setExistingClient(null); void handleSearchClientsByEmail(); }} className="font-medium text-blue-700 hover:underline">Cambiar</button>
+                <div className="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-800">
+                  <div className="flex items-center gap-2">
+                    {existingClient ? <UserCheck size={18} /> : <UserPlus size={18} />}
+                    <span className="flex-1">{existingClient ? "Se reutilizará este cliente sin modificar sus datos, salvo que hayas confirmado expresamente un cambio de correo." : "Se creará un cliente independiente con los datos mostrados."}</span>
+                    <button type="button" onClick={() => { setEmailChoiceMade(false); setExistingClient(null); setEmailDniConflict(null); void handleSearchClientsByEmail(); }} className="font-medium text-blue-700 hover:underline">Cambiar</button>
+                  </div>
+                  {existingClient && <div className="mt-3"><ClientIdentityCard client={existingClient} /></div>}
                 </div>
               )}
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <label htmlFor="dni" className="block text-sm font-medium text-gray-700">DNI (opcional)</label>
-                  <input id="dni" value={dni} onChange={(event) => handleDniChange(event.target.value)} inputMode="numeric" maxLength={8} placeholder="8 dígitos" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                  <input id="dni" value={dni} onChange={(event) => handleDniChange(event.target.value)} disabled={!!existingClient} inputMode="numeric" maxLength={8} placeholder="8 dígitos" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
                 </div>
-                <button type="button" onClick={handleSearchClient} disabled={isSearchingClient || !dni} className="btn btn-secondary disabled:opacity-60">Consultar DNI</button>
+                <button type="button" onClick={handleSearchClient} disabled={isSearchingClient || !dni || !!existingClient} className="btn btn-secondary disabled:opacity-60">Consultar DNI</button>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div><label htmlFor="phone" className="block text-sm font-medium text-gray-700">Teléfono</label><input id="phone" value={client.phone} onChange={(event) => updateClient("phone", event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-              </div>
+              {emailChoiceMade && !existingClient && (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  {([[
+                    "firstName", "Primer nombre",
+                  ], ["middleName", "Segundo nombre"], ["paternalSurname", "Apellido paterno"], ["maternalSurname", "Apellido materno"], ["phone", "Teléfono"]] as const).map(([field, label]) => (
+                    <div key={field}>
+                      <label htmlFor={`email-client-${field}`} className="block text-sm font-medium text-gray-700">{label}</label>
+                      <input id={`email-client-${field}`} value={client[field]} onChange={(event) => updateClient(field, event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="mt-6 border-t border-gray-200 pt-5">
                 <h3 className="font-medium text-gray-900">Datos del correo recibido</h3>
                 <p className="mt-1 text-sm text-gray-500">Se almacenarán como texto plano, sin estilos ni contenido ejecutable.</p>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="emailReceivedAt" className="block text-sm font-medium text-gray-700">Fecha y hora de recepción *</label>
-                    <input id="emailReceivedAt" type="datetime-local" required max={currentDateTimeLocalInput()} value={emailReceivedAt} onChange={(event) => setEmailReceivedAt(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                    <input id="emailReceivedAt" type="datetime-local" required readOnly={isGmailExchangeImport} max={currentDateTimeLocalInput()} value={emailReceivedAt} onChange={(event) => setEmailReceivedAt(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm read-only:bg-gray-100" />
+                    {isGmailExchangeImport && <p className="mt-1 text-xs text-gray-500">Fuente verificada: {emailReceivedAtSource}. Mostrada en America/Lima.</p>}
                   </div>
                   <div>
-                    <label htmlFor="emailRespondedAt" className="block text-sm font-medium text-gray-700">Fecha y hora de respuesta</label>
-                    <input id="emailRespondedAt" type="datetime-local" max={currentDateTimeLocalInput()} value={emailRespondedAt} onChange={(event) => setEmailRespondedAt(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                    <p className="mt-1 text-xs text-gray-500">Déjala vacía si la consulta aún no fue respondida.</p>
+                    <label htmlFor="emailRespondedAt" className="block text-sm font-medium text-gray-700">Fecha y hora de respuesta{isGmailExchangeImport ? " *" : ""}</label>
+                    <input id="emailRespondedAt" type="datetime-local" required={isGmailExchangeImport} readOnly={isGmailExchangeImport} max={currentDateTimeLocalInput()} value={emailRespondedAt} onChange={(event) => setEmailRespondedAt(event.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm read-only:bg-gray-100" />
+                    {isGmailExchangeImport ? <p className="mt-1 text-xs text-gray-500">Fuente verificada: {emailRespondedAtSource}. Mostrada en America/Lima.</p> : <p className="mt-1 text-xs text-gray-500">Déjala vacía si la consulta aún no fue respondida.</p>}
                   </div>
                 </div>
                 <div className="mt-4">
@@ -790,6 +969,20 @@ const NewAttention = () => {
                   <p className="mt-1 text-xs text-gray-500">Debe existir al menos un asunto o un cuerpo. Ambos se guardarán concatenados.</p>
                 </div>
                 {emailAttachments.length > 0 && <div className="mt-4"><h4 className="text-sm font-medium text-gray-700">Adjuntos visibles informados por Gmail</h4><ul className="mt-2 grid gap-2 md:grid-cols-2">{emailAttachments.map((attachment, index) => <li key={`${attachment.name}-${index}`} className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{attachment.name}{attachment.sizeLabel ? ` · ${attachment.sizeLabel}` : ""}{attachment.typeLabel ? ` · ${attachment.typeLabel}` : ""}</li>)}</ul><p className="mt-2 text-xs text-gray-500">No se descargó ni almacenó el contenido de estos archivos.</p></div>}
+                {isGmailExchangeImport && (
+                  <div className="mt-6 border-t border-gray-200 pt-5">
+                    <h3 className="font-medium text-gray-900">Respuesta final seleccionada</h3>
+                    <p className="mt-1 text-sm text-gray-500">Puedes corregir el texto antes de guardar; se conservará también como respuesta original del intercambio.</p>
+                    <textarea rows={7} maxLength={500000} required value={emailResponseOriginalText} onChange={(event) => setEmailResponseOriginalText(event.target.value)} className="mt-3 block w-full resize-y rounded-md border-gray-300 shadow-sm" />
+                    <dl className="mt-4 grid gap-3 rounded-md bg-gray-50 p-4 text-sm md:grid-cols-2">
+                      <div><dt className="text-gray-500">Buzón que respondió</dt><dd className="font-medium text-gray-900">{emailResponseMailboxName || "Sin denominación"} · {emailResponseMailboxEmail}</dd></div>
+                      <div><dt className="text-gray-500">Tipo de buzón</dt><dd className="font-medium text-gray-900">{emailResponseIsDelegated ? "Delegado" : "Normal"}</dd></div>
+                      {emailResponseIsDelegated && <div className="md:col-span-2"><dt className="text-gray-500">Correo del personal delegado</dt><dd className="font-medium text-gray-900">{emailResponseDelegateEmail}</dd></div>}
+                    </dl>
+                    <a href={gmailConversationUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-medium text-blue-700 hover:underline">Abrir referencia de la conversación en Gmail</a>
+                    <p className="mt-1 text-xs text-gray-500">El enlace requiere acceso al buzón y puede dejar de funcionar en cuentas delegadas.</p>
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -829,29 +1022,35 @@ const NewAttention = () => {
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {([
-              ["firstName", "Primer nombre *"],
-              ["middleName", "Segundo nombre"],
-              ["paternalSurname", "Apellido paterno *"],
-              ["maternalSurname", "Apellido materno *"],
-              ["email", "Correo electrónico"],
-              ["phone", "Teléfono"],
-            ] as const).map(([field, label]) => (
-              <div key={field}>
-                <label htmlFor={field} className="block text-sm font-medium text-gray-700">{label}</label>
-                <input
-                  id={field}
-                  type={field === "email" ? "email" : "text"}
-                  value={client[field]}
-                  onChange={(event) => updateClient(field, event.target.value)}
-                  disabled={clientInputsDisabled && field !== "email"}
-                  required={!existingClient && ["firstName", "paternalSurname", "maternalSurname"].includes(field)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 disabled:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-            ))}
-          </div>
+          {existingClient ? (
+            <div className="mt-4">
+              <ClientIdentityCard client={existingClient} />
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {([
+                ["firstName", "Primer nombre *"],
+                ["middleName", "Segundo nombre"],
+                ["paternalSurname", "Apellido paterno *"],
+                ["maternalSurname", "Apellido materno *"],
+                ["email", "Correo electrónico"],
+                ["phone", "Teléfono"],
+              ] as const).map(([field, label]) => (
+                <div key={field}>
+                  <label htmlFor={field} className="block text-sm font-medium text-gray-700">{label}</label>
+                  <input
+                    id={field}
+                    type={field === "email" ? "email" : "text"}
+                    value={client[field]}
+                    onChange={(event) => updateClient(field, event.target.value)}
+                    disabled={!lookupCompleted}
+                    required={["firstName", "paternalSurname", "maternalSurname"].includes(field)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 disabled:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           </>
           )}
         </section>
@@ -948,7 +1147,7 @@ const NewAttention = () => {
             </div>
             <div className="mt-4">
               <SpeechConclusionField id="conclusion" value={conclusion} onChange={setConclusion} maxLength={isEmailChannel ? 500000 : 3000} />
-              {isEmailChannel && <p className="mt-2 text-xs text-amber-700">La conclusión se precarga con el correo recibido. Revísala y reemplázala o complétala con la orientación brindada.</p>}
+              {isEmailChannel && <p className="mt-2 text-xs text-amber-700">{isGmailExchangeImport ? "La conclusión se precarga con la respuesta final seleccionada en Gmail. Revísala antes de guardar." : "Revísala y registra la orientación o respuesta brindada."}</p>}
             </div>
           </section>
         </fieldset>
@@ -992,9 +1191,14 @@ const NewAttention = () => {
                       <span className="text-xs text-gray-500">{new Date(match.createdAt).toLocaleString("es-PE")}</span>
                     </div>
                     <p className="mt-1 text-gray-700">
-                      {match.matchType === "MESSAGE_KEY"
-                        ? "Coincidencia con el identificador visible del mensaje de Gmail."
-                        : "Coincidencia probable por remitente, fecha y contenido del mensaje."}
+                      {{
+                        EXCHANGE: "Coincide la huella completa del intercambio recibido y respondido.",
+                        MESSAGE_PAIR: "Coinciden los identificadores de ambos mensajes del intercambio.",
+                        RECEIVED_MESSAGE: "El mensaje recibido ya aparece en otra atención.",
+                        RESPONSE_MESSAGE: "La respuesta seleccionada ya aparece en otra atención.",
+                        MESSAGE_KEY: "Coincidencia con el identificador visible del mensaje de Gmail.",
+                        FINGERPRINT: "Coincidencia probable por remitente, fecha y contenido del mensaje.",
+                      }[match.matchType]}
                     </p>
                   </li>
                 ))}

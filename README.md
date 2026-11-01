@@ -41,7 +41,8 @@ Ejecuta en SQL Editor, en este orden:
 13. `supabase/sql/14_dashboard_statistics.sql`
 14. `supabase/sql/15_dashboard_attention_trend.sql`
 15. `supabase/sql/16_email_attention_import_metadata.sql`
-16. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
+16. `supabase/sql/17_gmail_answered_exchange.sql`
+17. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
 
 Después configura el hook de invitaciones, OAuth y Realtime siguiendo `SUPABASE_WORKSTATIONS_SETUP.md`.
 
@@ -51,6 +52,10 @@ Si la base ya tiene instalados los módulos anteriores, ejecuta las migraciones
 pendientes en orden. Para el correo grupal de áreas ejecuta una sola vez:
 
 `supabase/migrations/20261026000000_area_group_referral_email.sql`
+
+Si ya ejecutaste el intercambio Gmail anterior, aplica después:
+
+`supabase/sql/18_remove_delegate_name.sql`
 
 No ejecutes simultáneamente esa migración y el SQL `10`: contienen la misma ampliación.
 
@@ -90,6 +95,12 @@ Para agregar las fechas, el mensaje original, los adjuntos visibles y el origen 
 
 No ejecutes simultáneamente esa migración y el SQL `16`: contienen la misma ampliación. Las RPC v3 se conservan temporalmente para permitir el despliegue gradual del formulario; la integración nueva utilizará las RPC v4.
 
+Para exigir un intercambio Gmail recibido y respondido, con ambas fechas verificadas, identidades y trazabilidad, ejecuta una sola vez:
+
+`supabase/migrations/20261031000000_gmail_answered_exchange.sql`
+
+No ejecutes simultáneamente esa migración y el SQL `17`: contienen la misma ampliación. Los registros anteriores permanecen compatibles; las nuevas importaciones usarán la RPC v5 y `gmail_import_version = 2`.
+
 Para instalar y desplegar el servicio de correo consulta `MAIL_SERVICE_SETUP.md`.
 
 Para configurar la consulta externa de DNI consulta `DNI_LOOKUP_SETUP.md`.
@@ -102,10 +113,12 @@ Para habilitar el correo de resolución y la encuesta independiente de derivacio
 
 ## Extensión Chrome para Gmail
 
-La carpeta `chrome-extension/` contiene la extensión Manifest V3 y su puente
-temporal con el formulario RAC. El manifest de producción está limitado a
-`https://sistema-de-atencion-al-cliente.vercel.app/*`; para las pruebas locales
-consulta `chrome-extension/README.md`.
+La carpeta `chrome-extension/` contiene el código fuente compartido de la
+extensión Manifest V3. Ejecuta `npm run build:extension` para generar dos
+carpetas listas para Chrome: `dist/chrome-extension-local` y
+`dist/chrome-extension-production`. La primera abre únicamente el puerto local
+4000 y la segunda únicamente el dominio desplegado. Consulta
+`chrome-extension/README.md`.
 
 La precarga se conserva en `chrome.storage.session`, asociada exclusivamente a
 la pestaña abierta por la extensión. Se elimina al guardar, descartarla, cerrar

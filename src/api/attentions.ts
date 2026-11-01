@@ -235,6 +235,17 @@ export const attentionsApi = {
       emailAttachments: mapEmailAttachments(row.email_attachments),
       sourceMessageKeyHash: row.source_message_key_hash,
       sourceFingerprint: row.source_fingerprint,
+      gmailImportVersion: row.gmail_import_version ?? null,
+      emailResponseOriginalText: row.email_response_original_text ?? null,
+      emailResponseMailboxEmail: row.email_response_mailbox_email ?? null,
+      emailResponseMailboxName: row.email_response_mailbox_name ?? null,
+      emailResponseDelegateEmail: row.email_response_delegate_email ?? null,
+      emailResponseIsDelegated: row.email_response_is_delegated ?? false,
+      emailReceivedAtSource: row.email_received_at_source ?? null,
+      emailRespondedAtSource: row.email_responded_at_source ?? null,
+      gmailConversationUrl: row.gmail_conversation_url ?? null,
+      sourceResponseMessageKeyHash: row.source_response_message_key_hash ?? null,
+      sourceExchangeFingerprint: row.source_exchange_fingerprint ?? null,
       status: row.status as CustomerAttentionDetail["status"],
       createdById: row.created_by,
       createdByName: row.created_by_name,
@@ -510,7 +521,7 @@ export const attentionsApi = {
   create: async (
     values: CreateCustomerAttentionInput,
   ): Promise<CreatedCustomerAttention> => {
-    const { data, error } = await supabase.rpc("create_customer_attention_v4", {
+    const baseArgs = {
       p_client: {
         id: values.client.id || null,
         create_new: values.client.createNew === true,
@@ -544,10 +555,28 @@ export const attentionsApi = {
       })),
       p_source_message_key_hash: values.sourceMessageKeyHash || null,
       p_source_fingerprint: values.sourceFingerprint || null,
-    });
+    };
+    const { data, error } = values.gmailImportVersion === 2
+      ? await supabase.rpc("create_customer_attention_v6", {
+          ...baseArgs,
+          p_gmail_import_version: 2,
+          p_email_response_original_text: values.emailResponseOriginalText || null,
+          p_email_response_mailbox_email: values.emailResponseMailboxEmail || null,
+          p_email_response_mailbox_name: values.emailResponseMailboxName || null,
+          p_email_response_delegate_email: values.emailResponseDelegateEmail || null,
+          p_email_response_is_delegated: values.emailResponseIsDelegated === true,
+          p_email_received_at_source: values.emailReceivedAtSource || null,
+          p_email_responded_at_source: values.emailRespondedAtSource || null,
+          p_gmail_conversation_url: values.gmailConversationUrl || null,
+          p_source_response_message_key_hash: values.sourceResponseMessageKeyHash || null,
+          p_source_exchange_fingerprint: values.sourceExchangeFingerprint || null,
+        })
+      : await supabase.rpc("create_customer_attention_v4", baseArgs);
 
     if (error?.code === "PGRST202") {
-      throw new Error("Los metadatos de correo no están instalados. Ejecuta el SQL 16 en Supabase.");
+      throw new Error(values.gmailImportVersion === 2
+        ? "El intercambio Gmail actualizado no está instalado. Ejecuta el SQL 17 en una base nueva o el SQL 18 en una base existente."
+        : "Los metadatos de correo no están instalados. Ejecuta el SQL 16 en Supabase.");
     }
     if (error) throw new Error(getErrorMessage(error));
 
@@ -576,6 +605,37 @@ export const attentionsApi = {
     if (error) throw new Error(getErrorMessage(error));
     const matches = (data || []).flatMap((row) => {
       if (row.match_type !== "MESSAGE_KEY" && row.match_type !== "FINGERPRINT") return [];
+      return [{
+        id: row.id,
+        racCode: row.rac_code,
+        createdAt: row.created_at,
+        matchType: row.match_type as EmailAttentionDuplicate["matchType"],
+      }];
+    });
+    return [...new Map(matches.map((match) => [match.id, match])).values()];
+  },
+
+  findEmailExchangeDuplicates: async ({
+    receivedMessageKeyHash,
+    responseMessageKeyHash,
+    exchangeFingerprint,
+  }: {
+    receivedMessageKeyHash: string | null;
+    responseMessageKeyHash: string | null;
+    exchangeFingerprint: string | null;
+  }): Promise<EmailAttentionDuplicate[]> => {
+    const { data, error } = await supabase.rpc("find_email_exchange_duplicates", {
+      p_source_message_key_hash: receivedMessageKeyHash,
+      p_source_response_message_key_hash: responseMessageKeyHash,
+      p_source_exchange_fingerprint: exchangeFingerprint,
+    });
+    if (error?.code === "PGRST202") {
+      throw new Error("La verificación de intercambios duplicados no está instalada. Ejecuta el SQL 17 en Supabase.");
+    }
+    if (error) throw new Error(getErrorMessage(error));
+    const allowed = new Set(["EXCHANGE", "MESSAGE_PAIR", "RECEIVED_MESSAGE", "RESPONSE_MESSAGE"]);
+    const matches = (data || []).flatMap((row) => {
+      if (!allowed.has(row.match_type)) return [];
       return [{
         id: row.id,
         racCode: row.rac_code,
