@@ -142,5 +142,15 @@ medios, procesos de admisión, clientes, mesas, atenciones, derivaciones,
 encuestas, colas de correo y registros de consulta de DNI.
 
 Antes de borrar, verifica que el administrador exista y posea el rol `ADMIN`.
-También valida el resultado antes de confirmar la transacción; si alguna
-condición no se cumple, se revierte toda la operación.
+También comprueba que no exista una tabla de aplicación nueva sin clasificar y
+valida que todas las tablas operativas queden vacías antes de confirmar la
+transacción. Si alguna condición no se cumple, se revierte toda la operación.
+
+### Reiniciar únicamente el historial RAC
+
+`supabase/sql/reset_rac_history_keep_configuration.sql` elimina las
+atenciones, derivaciones, encuestas, relaciones, correos pendientes e intentos
+de entrega, y reinicia el correlativo RAC. Conserva usuarios, áreas, clientes,
+mesas, medios de atención, procesos de admisión y catálogos. El script compara
+los conteos de la configuración antes y después, y revierte la transacción si
+detecta una modificación inesperada.

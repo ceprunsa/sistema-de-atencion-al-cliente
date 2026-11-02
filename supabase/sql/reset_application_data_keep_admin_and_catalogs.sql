@@ -11,6 +11,7 @@
 --
 -- ADVERTENCIA: la eliminacion es irreversible. Crea una copia de seguridad
 -- antes de ejecutar este archivo en el SQL Editor de Supabase.
+-- Compatible con las tablas instaladas hasta 18_remove_delegate_name.sql.
 
 begin;
 
@@ -46,6 +47,36 @@ begin
       and r.key = 'ADMIN'
   ) then
     raise exception 'Reinicio cancelado: el usuario % no posee el rol ADMIN.', v_admin_email;
+  end if;
+end;
+$$;
+
+-- Evita que una tabla de aplicacion agregada posteriormente quede fuera del
+-- reinicio por accidente. Las tablas tecnicas de extensiones deben vivir en
+-- sus propios esquemas; spatial_ref_sys se excluye por compatibilidad PostGIS.
+do $$
+declare
+  v_unknown_tables text;
+begin
+  select string_agg(format('public.%I', t.tablename), ', ' order by t.tablename)
+  into v_unknown_tables
+  from pg_tables t
+  where t.schemaname = 'public'
+    and t.tablename <> 'spatial_ref_sys'
+    and t.tablename <> all (array[
+      'roles', 'areas', 'profiles', 'user_invitations', 'user_roles',
+      'clients', 'service_channels', 'consultation_types',
+      'consultation_topics', 'kinship_types', 'rac_counters',
+      'customer_attentions', 'attention_topics', 'attention_referrals',
+      'workstations', 'workstation_assignments', 'tablet_bindings',
+      'attention_surveys', 'referral_surveys', 'email_outbox',
+      'email_delivery_attempts', 'dni_lookup_rate_limits',
+      'dni_lookup_attempts', 'public_survey_rate_limits',
+      'admission_processes', 'attention_admission_processes'
+    ]::text[]);
+
+  if v_unknown_tables is not null then
+    raise exception 'Reinicio cancelado: existen tablas public no clasificadas: %. Actualiza primero este script.', v_unknown_tables;
   end if;
 end;
 $$;
@@ -133,14 +164,25 @@ begin
   end if;
 
   if exists (select 1 from public.areas)
+    or exists (select 1 from public.user_invitations)
     or exists (select 1 from public.service_channels)
     or exists (select 1 from public.admission_processes)
     or exists (select 1 from public.clients)
     or exists (select 1 from public.customer_attentions)
+    or exists (select 1 from public.attention_topics)
+    or exists (select 1 from public.attention_admission_processes)
+    or exists (select 1 from public.rac_counters)
     or exists (select 1 from public.workstations)
+    or exists (select 1 from public.workstation_assignments)
+    or exists (select 1 from public.tablet_bindings)
     or exists (select 1 from public.attention_referrals)
     or exists (select 1 from public.attention_surveys)
-    or exists (select 1 from public.referral_surveys) then
+    or exists (select 1 from public.referral_surveys)
+    or exists (select 1 from public.email_outbox)
+    or exists (select 1 from public.email_delivery_attempts)
+    or exists (select 1 from public.dni_lookup_attempts)
+    or exists (select 1 from public.dni_lookup_rate_limits)
+    or exists (select 1 from public.public_survey_rate_limits) then
     raise exception 'Validacion fallida: permanecen datos que debian eliminarse.';
   end if;
 end;
@@ -160,4 +202,20 @@ select
   (select count(*) from public.kinship_types) as kinship_types,
   (select count(*) from public.service_channels) as service_channels,
   (select count(*) from public.admission_processes) as admission_processes,
-  (select count(*) from public.customer_attentions) as customer_attentions;
+  (select count(*) from public.clients) as clients,
+  (select count(*) from public.customer_attentions) as customer_attentions,
+  (select count(*) from public.attention_topics) as attention_topics,
+  (select count(*) from public.attention_admission_processes) as attention_admission_processes,
+  (select count(*) from public.attention_referrals) as attention_referrals,
+  (select count(*) from public.attention_surveys) as attention_surveys,
+  (select count(*) from public.referral_surveys) as referral_surveys,
+  (select count(*) from public.workstations) as workstations,
+  (select count(*) from public.workstation_assignments) as workstation_assignments,
+  (select count(*) from public.tablet_bindings) as tablet_bindings,
+  (select count(*) from public.email_outbox) as email_outbox,
+  (select count(*) from public.email_delivery_attempts) as email_delivery_attempts,
+  (select count(*) from public.dni_lookup_attempts) as dni_lookup_attempts,
+  (select count(*) from public.dni_lookup_rate_limits) as dni_lookup_rate_limits,
+  (select count(*) from public.public_survey_rate_limits) as public_survey_rate_limits,
+  (select count(*) from public.user_invitations) as user_invitations,
+  (select count(*) from public.rac_counters) as rac_counters;

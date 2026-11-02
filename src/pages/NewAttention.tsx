@@ -388,7 +388,7 @@ const NewAttention = () => {
 
   const updateClient = (field: keyof ClientForm, value: string) => {
     setClient((current) => ({ ...current, [field]: value }));
-    if (field === "email") {
+    if (field === "email" && isEmailChannel) {
       setEmailCandidates([]);
       setEmailChoiceMade(false);
       setExistingClient(null);

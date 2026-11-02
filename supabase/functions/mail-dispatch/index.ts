@@ -107,19 +107,21 @@ const renderEmail = (job: OutboxJob, publicAppUrl: string): RenderedEmail => {
 
   const surveyToken = requireText(data, "surveyToken", 500);
   const surveyUrl = `${publicAppUrl}/survey/${encodeURIComponent(surveyToken)}`;
+  const noReplyHtml = `<div style="margin:20px 0;padding:12px 14px;border:1px solid #f59e0b;border-radius:6px;background:#fffbeb;color:#92400e;font-size:14px"><strong>Mensaje autom&aacute;tico:</strong> no respondas a este correo. Para registrar tu opini&oacute;n, utiliza &uacute;nicamente el bot&oacute;n <strong>Responder encuesta</strong>.</div>`;
+  const noReplyText = "MENSAJE AUTOMÁTICO: no respondas a este correo. Para registrar tu opinión, utiliza únicamente el enlace de la encuesta.";
   if (job.template_key === "ATTENTION_SURVEY") {
     return {
       subject: `Encuesta de satisfacción · ${racCode}`,
-      htmlBody: baseLayout("Encuesta de satisfacción", `<p>Queremos conocer tu opini&oacute;n sobre la atenci&oacute;n recibida.</p><p>C&oacute;digo: <strong>${escapeHtml(racCode)}</strong></p>${actionButton(surveyUrl, "Responder encuesta")}<p style="color:#6b7280;font-size:13px">El enlace es personal y tiene una vigencia limitada. No lo compartas.</p>`),
-      textBody: `Encuesta de satisfacción\n\nCódigo: ${racCode}\nResponder: ${surveyUrl}\n\nEl enlace es personal y tiene una vigencia limitada.`,
+      htmlBody: baseLayout("Encuesta de satisfacción", `<p>Queremos conocer tu opini&oacute;n sobre la atenci&oacute;n recibida.</p><p>C&oacute;digo: <strong>${escapeHtml(racCode)}</strong></p>${actionButton(surveyUrl, "Responder encuesta")}${noReplyHtml}<p style="color:#6b7280;font-size:13px">El enlace es personal y tiene una vigencia limitada. No lo compartas.</p>`),
+      textBody: `Encuesta de satisfacción\n\nCódigo: ${racCode}\nResponder encuesta: ${surveyUrl}\n\n${noReplyText}\n\nEl enlace es personal y tiene una vigencia limitada. No lo compartas.`,
     };
   }
 
   const conclusion = requireText(data, "conclusion", 3_000);
   return {
     subject: `Resultado de derivación · ${racCode}`,
-    htmlBody: baseLayout("Resultado de tu derivación", `<p>C&oacute;digo: <strong>${escapeHtml(racCode)}</strong></p><p style="white-space:pre-wrap">${escapeHtml(conclusion)}</p>${actionButton(surveyUrl, "Responder encuesta")}<p style="color:#6b7280;font-size:13px">El enlace es personal y tiene una vigencia limitada. No lo compartas.</p>`),
-    textBody: `Resultado de tu derivación\n\nCódigo: ${racCode}\n\n${conclusion}\n\nResponder encuesta: ${surveyUrl}`,
+    htmlBody: baseLayout("Resultado de tu derivación", `<p>C&oacute;digo: <strong>${escapeHtml(racCode)}</strong></p><p style="white-space:pre-wrap">${escapeHtml(conclusion)}</p>${actionButton(surveyUrl, "Responder encuesta")}${noReplyHtml}<p style="color:#6b7280;font-size:13px">El enlace es personal y tiene una vigencia limitada. No lo compartas.</p>`),
+    textBody: `Resultado de tu derivación\n\nCódigo: ${racCode}\n\n${conclusion}\n\nResponder encuesta: ${surveyUrl}\n\n${noReplyText}\n\nEl enlace es personal y tiene una vigencia limitada. No lo compartas.`,
   };
 };
 
