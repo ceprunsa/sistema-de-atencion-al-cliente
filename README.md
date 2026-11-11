@@ -42,7 +42,9 @@ Ejecuta en SQL Editor, en este orden:
 14. `supabase/sql/15_dashboard_attention_trend.sql`
 15. `supabase/sql/16_email_attention_import_metadata.sql`
 16. `supabase/sql/17_gmail_answered_exchange.sql`
-17. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
+17. `supabase/sql/18_remove_delegate_name.sql`
+18. `supabase/sql/19_client_management.sql`
+19. Configura y ejecuta `supabase/sql/02_bootstrap_admin.sql` antes del primer ingreso.
 
 Después configura el hook de invitaciones, OAuth y Realtime siguiendo `SUPABASE_WORKSTATIONS_SETUP.md`.
 
@@ -85,6 +87,15 @@ muestra en el detalle de la atención, aplica después:
 La migración corrige la evaluación RLS sin ampliar el acceso: solamente pueden
 leer la relación el administrador, el creador de la atención o un usuario del
 área receptora de la derivación.
+
+Para instalar la gestión administrativa de clientes y limitar las búsquedas
+operativas a coincidencias exactas por DNI o correo, ejecuta:
+
+`supabase/migrations/20261111000000_client_management.sql`
+
+Esta migración restringe la lectura directa de `clients`. Debe desplegarse junto
+con el frontend que utiliza las nuevas RPC de identificación; no debe aplicarse
+aisladamente antes de completar la etapa 2.
 
 Para habilitar el Dashboard estadístico agregado, ejecuta una sola vez:
 

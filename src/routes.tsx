@@ -21,6 +21,9 @@ import Tablet from "./pages/Tablet";
 import PublicSurvey from "./pages/PublicSurvey";
 import AttentionRegistrationRoute from "./components/AttentionRegistrationRoute";
 import AdmissionProcesses from "./pages/AdmissionProcesses";
+import Clients from "./pages/Clients";
+import ClientForm from "./pages/ClientForm";
+import ClientDetail from "./pages/ClientDetail";
 
 export const router = createBrowserRouter([
   {
@@ -73,6 +76,38 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <UserForm />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "clients",
+        element: (
+          <AdminRoute>
+            <Clients />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "clients/new",
+        element: (
+          <AdminRoute>
+            <ClientForm />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "clients/:id",
+        element: (
+          <AdminRoute>
+            <ClientDetail />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "clients/:id/edit",
+        element: (
+          <AdminRoute>
+            <ClientForm />
           </AdminRoute>
         ),
       },

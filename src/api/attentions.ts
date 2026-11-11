@@ -1,13 +1,12 @@
 import { supabase } from "../supabase/config";
 import type { Database } from "../supabase/types";
+import { clientIdentificationApi } from "./clientIdentification";
 import type {
   Area,
   AdmissionProcess,
   AttentionCreationOrigin,
   AttentionRegistrationState,
   AttentionListItem,
-  Client,
-  ClientLookupResult,
   ConsultationTopic,
   ConsultationType,
   ConcludeReferralResult,
@@ -32,7 +31,6 @@ type ReferralDetailRow = Database["public"]["Tables"]["attention_referrals"]["Ro
 };
 
 type DetailRow = Database["public"]["Tables"]["customer_attentions"]["Row"] & {
-  clients: DatabaseClientRow | null;
   service_channels: Database["public"]["Tables"]["service_channels"]["Row"] | null;
   kinship_types: { name: string } | null;
   attention_topics: Array<{
@@ -61,35 +59,6 @@ const mapAdmissionProcess = (row: Database["public"]["Tables"]["admission_proces
   customLabel: row.custom_label,
   year: row.year,
   isActive: row.is_active,
-});
-
-type ClientRow = DatabaseClientRow;
-type DatabaseClientRow = {
-  id: string;
-  dni: string | null;
-  display_name: string;
-  first_name: string | null;
-  middle_name: string | null;
-  paternal_surname: string | null;
-  maternal_surname: string | null;
-  email: string | null;
-  phone: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-const mapClient = (row: ClientRow): Client => ({
-  id: row.id,
-  dni: row.dni,
-  displayName: row.display_name,
-  firstName: row.first_name,
-  middleName: row.middle_name,
-  paternalSurname: row.paternal_surname,
-  maternalSurname: row.maternal_surname,
-  email: row.email,
-  phone: row.phone,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
 });
 
 const mapEmailAttachments = (value: Database["public"]["Tables"]["customer_attentions"]["Row"]["email_attachments"]): EmailAttachmentMetadata[] => {
@@ -192,7 +161,7 @@ export const attentionsApi = {
     const { data, error } = await supabase
       .from("customer_attentions")
       .select(
-        "*,clients(*),service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_admission_processes(admission_processes(*)),attention_referrals(*,referral_surveys(id,status,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)),attention_surveys(id,status,channel,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)",
+        "*,service_channels(*),kinship_types(name),attention_topics(consultation_topics(id,name,consultation_types(name))),attention_admission_processes(admission_processes(*)),attention_referrals(*,referral_surveys(id,status,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)),attention_surveys(id,status,channel,response,recipient_email,token_expires_at,sent_at,completed_at,closed_reason,closed_at)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -201,8 +170,12 @@ export const attentionsApi = {
     if (!data) return null;
 
     const row = data as unknown as DetailRow;
-    if (!row.clients || !row.service_channels) {
+    if (!row.service_channels) {
       throw new Error("La atención no tiene todos sus datos relacionados disponibles.");
+    }
+    const client = await clientIdentificationApi.getForAttention(id);
+    if (!client) {
+      throw new Error("El cliente relacionado con la atención no está disponible.");
     }
 
     const referral = Array.isArray(row.attention_referrals)
@@ -256,7 +229,7 @@ export const attentionsApi = {
       disabledReason: row.disabled_reason,
       disabledByName: row.disabled_by_name,
       disabledAt: row.disabled_at,
-      client: mapClient(row.clients),
+      client,
       serviceChannel: {
         id: row.service_channels.id,
         name: row.service_channels.name,
@@ -328,94 +301,6 @@ export const attentionsApi = {
         .filter((item) => item.admission_processes)
         .map((item) => mapAdmissionProcess(item.admission_processes!)),
     };
-  },
-
-  findClientByDni: async (dni: string): Promise<ClientLookupResult> => {
-    const { data, error } = await supabase
-      .from("clients")
-      .select(
-        "id,dni,display_name,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at",
-      )
-      .eq("dni", dni)
-      .maybeSingle();
-
-    if (error) throw new Error(getErrorMessage(error));
-    if (data) return { source: "LOCAL", client: mapClient(data as ClientRow) };
-
-    const { data: externalData, error: externalError } = await supabase.functions.invoke(
-      "dni-lookup",
-      { body: { dni } },
-    );
-    if (externalError) {
-      let message = "No se pudo consultar el DNI.";
-      const context = (externalError as { context?: unknown }).context;
-      if (context instanceof Response) {
-        try {
-          const body = await context.clone().json() as { message?: unknown };
-          if (typeof body.message === "string" && body.message.trim()) message = body.message;
-        } catch {
-          // El mensaje genérico permite continuar manualmente si la respuesta no trae JSON.
-        }
-      }
-      throw new Error(message);
-    }
-
-    const result = externalData as {
-      status?: unknown;
-      source?: unknown;
-      message?: unknown;
-      client?: ClientRow;
-      person?: {
-        firstName?: unknown;
-        middleName?: unknown;
-        paternalSurname?: unknown;
-        maternalSurname?: unknown;
-      };
-    } | null;
-    if (result?.status === "FOUND" && result.source === "LOCAL" && result.client) {
-      return { source: "LOCAL", client: mapClient(result.client) };
-    }
-    if (
-      result?.status === "FOUND"
-      && result.source === "EXTERNAL"
-      && typeof result.person?.firstName === "string"
-      && (typeof result.person.middleName === "string" || result.person.middleName === null)
-      && typeof result.person.paternalSurname === "string"
-      && typeof result.person.maternalSurname === "string"
-    ) {
-      return {
-        source: "EXTERNAL",
-        person: {
-          firstName: result.person.firstName,
-          middleName: result.person.middleName,
-          paternalSurname: result.person.paternalSurname,
-          maternalSurname: result.person.maternalSurname,
-        },
-      };
-    }
-    if (result?.status === "NOT_FOUND" || result?.status === "UNAVAILABLE") {
-      return {
-        source: "MANUAL",
-        message: typeof result.message === "string"
-          ? result.message
-          : "No se encontraron datos. Ingresa la información manualmente.",
-      };
-    }
-    throw new Error("El servicio de consulta DNI devolvió una respuesta no reconocida.");
-  },
-
-  findClientsByEmail: async (email: string): Promise<Client[]> => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const { data, error } = await supabase
-      .from("clients")
-      .select("id,dni,display_name,first_name,middle_name,paternal_surname,maternal_surname,email,phone,created_at,updated_at")
-      .eq("email", normalizedEmail)
-      .order("updated_at", { ascending: false });
-    if (error?.code === "PGRST202") {
-      throw new Error("El flujo flexible de clientes no está instalado. Ejecuta el SQL 12 en Supabase.");
-    }
-    if (error) throw new Error(getErrorMessage(error));
-    return ((data || []) as DatabaseClientRow[]).map(mapClient);
   },
 
   getNewAttentionCatalogs: async (): Promise<NewAttentionCatalogs> => {

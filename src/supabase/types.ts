@@ -1019,6 +1019,79 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      find_client_by_exact_dni: {
+        Args: { p_dni: string };
+        Returns: Array<{
+          id: string; dni: string | null; display_name: string;
+          first_name: string | null; middle_name: string | null;
+          paternal_surname: string | null; maternal_surname: string | null;
+          email: string | null; phone: string | null;
+          created_at: string; updated_at: string;
+        }>;
+      };
+      find_clients_by_exact_email: {
+        Args: { p_email: string };
+        Returns: Array<{
+          id: string; dni: string | null; display_name: string;
+          first_name: string | null; middle_name: string | null;
+          paternal_surname: string | null; maternal_surname: string | null;
+          email: string | null; phone: string | null;
+          created_at: string; updated_at: string;
+        }>;
+      };
+      get_client_for_attention: {
+        Args: { p_attention_id: string };
+        Returns: Array<{
+          id: string; dni: string | null; display_name: string;
+          first_name: string | null; middle_name: string | null;
+          paternal_surname: string | null; maternal_surname: string | null;
+          email: string | null; phone: string | null;
+          created_at: string; updated_at: string;
+        }>;
+      };
+      list_clients_admin: {
+        Args: { p_page?: number; p_limit?: number; p_search?: string };
+        Returns: Array<{
+          id: string; dni: string | null; display_name: string;
+          first_name: string | null; middle_name: string | null;
+          paternal_surname: string | null; maternal_surname: string | null;
+          email: string | null; phone: string | null;
+          created_at: string; updated_at: string;
+          attention_count: number; total_count: number;
+        }>;
+      };
+      get_client_admin: {
+        Args: { p_client_id: string };
+        Returns: Array<{
+          id: string; dni: string | null; display_name: string;
+          first_name: string | null; middle_name: string | null;
+          paternal_surname: string | null; maternal_surname: string | null;
+          email: string | null; phone: string | null; created_by: string | null;
+          created_at: string; updated_at: string; attention_count: number;
+        }>;
+      };
+      create_client_admin: {
+        Args: { p_client: Json };
+        Returns: Json;
+      };
+      update_client_admin: {
+        Args: {
+          p_client_id: string;
+          p_client: Json;
+          p_confirm_dni_change?: boolean;
+        };
+        Returns: Json;
+      };
+      list_client_attentions_admin: {
+        Args: { p_client_id: string; p_page?: number; p_limit?: number };
+        Returns: Array<{
+          id: string; rac_code: string; attention_status: string;
+          requester_type: string; service_channel_name: string;
+          created_by_name: string; created_at: string;
+          referral_status: string; referral_area_name: string | null;
+          total_count: number;
+        }>;
+      };
       accept_user_invitation: {
         Args: {
           p_account_name: string | null;

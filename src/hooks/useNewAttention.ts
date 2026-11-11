@@ -1,18 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { attentionsApi } from "../api/attentions";
+import { useClientIdentification } from "./useClientIdentification";
 
 export const useNewAttention = () => {
+  const clientIdentification = useClientIdentification();
   const catalogsQuery = useQuery({
     queryKey: ["attentions", "new", "catalogs"],
     queryFn: attentionsApi.getNewAttentionCatalogs,
-  });
-
-  const clientMutation = useMutation({
-    mutationFn: attentionsApi.findClientByDni,
-  });
-
-  const emailClientsMutation = useMutation({
-    mutationFn: attentionsApi.findClientsByEmail,
   });
 
   const createMutation = useMutation({
@@ -31,10 +25,11 @@ export const useNewAttention = () => {
     catalogs: catalogsQuery.data,
     isLoadingCatalogs: catalogsQuery.isLoading,
     isErrorCatalogs: catalogsQuery.isError,
-    findClient: clientMutation.mutateAsync,
-    isSearchingClient: clientMutation.isPending,
-    findClientsByEmail: emailClientsMutation.mutateAsync,
-    isSearchingClientsByEmail: emailClientsMutation.isPending,
+    findClient: clientIdentification.findClient,
+    isSearchingClient: clientIdentification.isSearchingClient,
+    findClientsByEmail: clientIdentification.findClientsByEmail,
+    isSearchingClientsByEmail:
+      clientIdentification.isSearchingClientsByEmail,
     createAttention: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     findEmailDuplicates: duplicateMutation.mutateAsync,

@@ -127,6 +127,38 @@ export interface Client {
   updatedAt: string;
 }
 
+export interface ClientListItem extends Client {
+  attentionCount: number;
+}
+
+export interface ClientAdminDetail extends Client {
+  createdById: string | null;
+  attentionCount: number;
+}
+
+export interface ClientInput {
+  dni: string;
+  displayName: string;
+  firstName: string;
+  middleName: string;
+  paternalSurname: string;
+  maternalSurname: string;
+  email: string;
+  phone: string;
+}
+
+export interface ClientAttentionListItem {
+  id: string;
+  racCode: string;
+  status: CustomerAttentionStatus;
+  requesterType: AttentionRequesterType;
+  serviceChannelName: string;
+  createdByName: string;
+  createdAt: string;
+  referralStatus: ReferralStatus;
+  referralAreaName: string | null;
+}
+
 export type ClientLookupResult =
   | { source: "LOCAL"; client: Client }
   | {
