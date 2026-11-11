@@ -77,6 +77,15 @@ Para agregar el catálogo de procesos y sus etiquetas en las atenciones, ejecuta
 
 No ejecutes simultáneamente esa migración y el SQL `13`: contienen la misma ampliación.
 
+Si la relación con los procesos se guarda y funciona en los filtros, pero no se
+muestra en el detalle de la atención, aplica después:
+
+`supabase/migrations/20261108000000_fix_attention_admission_process_visibility.sql`
+
+La migración corrige la evaluación RLS sin ampliar el acceso: solamente pueden
+leer la relación el administrador, el creador de la atención o un usuario del
+área receptora de la derivación.
+
 Para habilitar el Dashboard estadístico agregado, ejecuta una sola vez:
 
 `supabase/migrations/20261026040000_dashboard_statistics.sql`

@@ -5,6 +5,29 @@ union all
 select 'attention_admission_processes_table_exists',
   to_regclass('public.attention_admission_processes') is not null
 union all
+select 'attention_admission_process_visibility_helper_exists',
+  to_regprocedure('public.can_view_attention_admission_processes(uuid)') is not null
+union all
+select 'attention_admission_process_visibility_helper_not_anon',
+  coalesce(
+    not has_function_privilege(
+      'anon',
+      to_regprocedure('public.can_view_attention_admission_processes(uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+union all
+select 'attention_admission_process_visibility_helper_authenticated',
+  coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure('public.can_view_attention_admission_processes(uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+union all
 select 'standard_process_unique_index_exists',
   to_regclass('public.admission_processes_standard_uidx') is not null
 union all
