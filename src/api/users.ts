@@ -186,7 +186,9 @@ const acceptInvitation = async (currentUser: AuthUserData) => {
 const getProfileById = async (id: string): Promise<UserProfile | null> => {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*, area:areas(id,name), user_roles(role:roles(id,key,name))")
+    .select(
+      "*, area:areas!profiles_area_id_fkey(id,name), user_roles(role:roles(id,key,name))",
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -313,7 +315,10 @@ export const usersApi = {
 
     const { data, error, count } = await supabase
       .from("profiles")
-      .select("*, area:areas(id,name), user_roles(role:roles(id,key,name))", { count: "exact" })
+      .select(
+        "*, area:areas!profiles_area_id_fkey(id,name), user_roles(role:roles(id,key,name))",
+        { count: "exact" },
+      )
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .range(from, to);

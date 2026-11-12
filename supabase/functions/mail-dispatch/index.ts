@@ -10,12 +10,26 @@ declare const Deno: {
 
 type OutboxJob = {
   id: string;
-  event_type: "REFERRAL_CREATED" | "ATTENTION_SURVEY" | "REFERRAL_RESOLVED";
-  aggregate_type: "ATTENTION" | "REFERRAL";
+  event_type:
+    | "REFERRAL_CREATED"
+    | "ATTENTION_SURVEY"
+    | "REFERRAL_RESOLVED"
+    | "COMPLAINT_CREATED"
+    | "COMPLAINT_RESPONSE_REQUESTED"
+    | "COMPLAINT_CLOSURE_PENDING"
+    | "COMPLAINT_CLOSURE_RETURNED";
+  aggregate_type: "ATTENTION" | "REFERRAL" | "COMPLAINT";
   aggregate_id: string;
   recipient_email: string;
   cc_emails: string[];
-  template_key: "REFERRAL_CREATED" | "ATTENTION_SURVEY" | "REFERRAL_RESOLVED";
+  template_key:
+    | "REFERRAL_CREATED"
+    | "ATTENTION_SURVEY"
+    | "REFERRAL_RESOLVED"
+    | "COMPLAINT_CREATED"
+    | "COMPLAINT_RESPONSE_REQUESTED"
+    | "COMPLAINT_CLOSURE_PENDING"
+    | "COMPLAINT_CLOSURE_RETURNED";
   template_data: Record<string, unknown>;
   encrypted_payload: string | null;
   idempotency_key: string;
@@ -92,6 +106,79 @@ const actionButton = (url: string, label: string) =>
 
 const renderEmail = (job: OutboxJob, publicAppUrl: string): RenderedEmail => {
   const data = job.template_data || {};
+
+  if (job.template_key === "COMPLAINT_CREATED") {
+    const complaintCode = requireText(data, "complaintCode", 40);
+    const areaName = requireText(data, "responsibleAreaName", 120);
+    const description = requireText(data, "description", 10_000);
+    return {
+      subject: `Nueva queja pendiente · ${complaintCode}`,
+      htmlBody: baseLayout(
+        "Nueva queja pendiente",
+        `<p>Se registr&oacute; una queja para el &aacute;rea <strong>${escapeHtml(areaName)}</strong>.</p><p>C&oacute;digo: <strong>${escapeHtml(complaintCode)}</strong></p><p style="white-space:pre-wrap">${escapeHtml(description)}</p>`,
+      ),
+      textBody: `Nueva queja pendiente\n\nÁrea: ${areaName}\nCódigo: ${complaintCode}\n\n${description}`,
+    };
+  }
+
+  if (job.template_key === "COMPLAINT_RESPONSE_REQUESTED") {
+    const complaintCode = requireText(data, "complaintCode", 40);
+    const description = requireText(data, "description", 10_000);
+    const analysis = requireText(data, "analysis", 10_000);
+    const actions = requireText(data, "actions", 10_000);
+    const responseToken = requireUuid(data, "responseToken");
+    const proceeds = data.proceeds === true;
+    const explanation = typeof data.clientExplanation === "string"
+      ? data.clientExplanation.trim().slice(0, 10_000)
+      : "";
+    const responseUrl = `${publicAppUrl}/complaint-response/${encodeURIComponent(responseToken)}`;
+    const decision = proceeds ? "La queja procede" : "La queja no procede";
+    const explanationHtml = explanation
+      ? `<p><strong>Explicaci&oacute;n:</strong></p><p style="white-space:pre-wrap">${escapeHtml(explanation)}</p>`
+      : "";
+    const noReplyHtml = `<div style="margin:20px 0;padding:12px 14px;border:1px solid #f59e0b;border-radius:6px;background:#fffbeb;color:#92400e;font-size:14px"><strong>Mensaje autom&aacute;tico:</strong> no respondas a este correo. Registra tu conformidad o desacuerdo &uacute;nicamente desde el bot&oacute;n.</div>`;
+    return {
+      subject: `Respuesta a tu queja · ${complaintCode}`,
+      htmlBody: baseLayout(
+        "Respuesta a tu queja",
+        `<p>C&oacute;digo: <strong>${escapeHtml(complaintCode)}</strong></p><p><strong>Detalle de la queja:</strong></p><p style="white-space:pre-wrap">${escapeHtml(description)}</p><p><strong>Decisi&oacute;n:</strong> ${escapeHtml(decision)}</p><p><strong>An&aacute;lisis:</strong></p><p style="white-space:pre-wrap">${escapeHtml(analysis)}</p><p><strong>Acciones tomadas o propuestas:</strong></p><p style="white-space:pre-wrap">${escapeHtml(actions)}</p>${explanationHtml}${actionButton(responseUrl, "Responder sobre la atención")}${noReplyHtml}<p style="color:#6b7280;font-size:13px">El enlace es personal, de un solo uso y vence siete d&iacute;as despu&eacute;s de la entrega del correo.</p>`,
+      ),
+      textBody: `Respuesta a tu queja\n\nCódigo: ${complaintCode}\n\nDetalle:\n${description}\n\nDecisión: ${decision}\n\nAnálisis:\n${analysis}\n\nAcciones:\n${actions}${explanation ? `\n\nExplicación:\n${explanation}` : ""}\n\nResponder: ${responseUrl}\n\nMENSAJE AUTOMÁTICO: no respondas a este correo. Utiliza únicamente el enlace.\n\nEl enlace es personal, de un solo uso y vence siete días después de la entrega.`,
+    };
+  }
+
+  if (job.template_key === "COMPLAINT_CLOSURE_PENDING") {
+    const complaintId = requireUuid(data, "complaintId");
+    const complaintCode = requireText(data, "complaintCode", 40);
+    const areaName = requireText(data, "closureAreaName", 120);
+    const reason = requireText(data, "reason", 500);
+    const detailUrl = `${publicAppUrl}/complaints/${complaintId}`;
+    return {
+      subject: `Queja pendiente de seguimiento · ${complaintCode}`,
+      htmlBody: baseLayout(
+        "Queja pendiente de seguimiento",
+        `<p>La queja <strong>${escapeHtml(complaintCode)}</strong> fue remitida al &aacute;rea <strong>${escapeHtml(areaName)}</strong>.</p><p>${escapeHtml(reason)}</p>${actionButton(detailUrl, "Abrir expediente")}`,
+      ),
+      textBody: `Queja pendiente de seguimiento\n\nCódigo: ${complaintCode}\nÁrea: ${areaName}\nMotivo: ${reason}\n\nAbrir expediente: ${detailUrl}`,
+    };
+  }
+
+  if (job.template_key === "COMPLAINT_CLOSURE_RETURNED") {
+    const complaintId = requireUuid(data, "complaintId");
+    const complaintCode = requireText(data, "complaintCode", 40);
+    const areaName = requireText(data, "responsibleAreaName", 120);
+    const observations = requireText(data, "observations", 10_000);
+    const detailUrl = `${publicAppUrl}/complaints/${complaintId}`;
+    return {
+      subject: `Queja devuelta por revisión de cierre · ${complaintCode}`,
+      htmlBody: baseLayout(
+        "Queja devuelta por revisión de cierre",
+        `<p>La queja <strong>${escapeHtml(complaintCode)}</strong> fue devuelta al &aacute;rea <strong>${escapeHtml(areaName)}</strong>.</p><p><strong>Observaciones del &aacute;rea de cierre:</strong></p><p style="white-space:pre-wrap">${escapeHtml(observations)}</p>${actionButton(detailUrl, "Revisar expediente")}`,
+      ),
+      textBody: `Queja devuelta por revisión de cierre\n\nCódigo: ${complaintCode}\nÁrea responsable: ${areaName}\n\nObservaciones:\n${observations}\n\nRevisar expediente: ${detailUrl}`,
+    };
+  }
+
   const racCode = requireText(data, "racCode", 40);
 
   if (job.template_key === "REFERRAL_CREATED") {
@@ -135,6 +222,9 @@ const bytesToBase64 = (bytes: Uint8Array) => {
 
 const bytesToHex = (bytes: Uint8Array) =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+const sha256Hex = async (value: string) =>
+  bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
 
 const sign = async (value: string, secret: string) => {
   const encoder = new TextEncoder();
@@ -244,7 +334,220 @@ Deno.serve(async (request) => {
     job.cc_emails = ccEmails;
 
     try {
-      if (job.template_key === "REFERRAL_CREATED") {
+      if (job.template_key === "COMPLAINT_CREATED") {
+        const complaintId = requireUuid(job.template_data || {}, "complaintId");
+        const responsibleAreaId = requireUuid(
+          job.template_data || {},
+          "responsibleAreaId",
+        );
+        const complaintCode = requireText(
+          job.template_data || {},
+          "complaintCode",
+          40,
+        );
+        const { data: complaint, error: complaintError } = await client
+          .from("complaints")
+          .select("complaint_code,responsible_area_id")
+          .eq("id", complaintId)
+          .maybeSingle();
+        if (complaintError) {
+          throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT");
+        }
+
+        const { data: responsibleArea, error: areaError } = await client
+          .from("areas")
+          .select("group_email,is_active")
+          .eq("id", responsibleAreaId)
+          .maybeSingle();
+        if (areaError) {
+          throw new Error("SOURCE_VALIDATION_TRANSIENT:RESPONSIBLE_AREA");
+        }
+
+        const { data: communication, error: communicationError } = await client
+          .from("complaint_communications")
+          .select("id")
+          .eq("complaint_id", complaintId)
+          .eq("communication_type", "COMPLAINT_CREATED")
+          .eq("outbox_id", job.id)
+          .maybeSingle();
+        if (communicationError) {
+          throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_COMMUNICATION");
+        }
+
+        const sourceIsValid = job.aggregate_id === complaintId
+          && complaint?.complaint_code === complaintCode
+          && complaint?.responsible_area_id === responsibleAreaId
+          && responsibleArea?.is_active === true
+          && normalizeEmail(responsibleArea?.group_email || "")
+            === normalizeEmail(job.recipient_email)
+          && Boolean(communication);
+        if (!sourceIsValid) {
+          await finish({
+            outcome: "FAILED_PERMANENT",
+            errorCode: "SOURCE_NO_LONGER_VALID",
+            errorMessage:
+              "La queja o el destinatario ya no cumple las condiciones del aviso.",
+          });
+          summary.permanentFailure += 1;
+          continue;
+        }
+      } else if (job.template_key === "COMPLAINT_CLOSURE_PENDING") {
+        const complaintId = requireUuid(job.template_data || {}, "complaintId");
+        const closureAreaId = requireUuid(job.template_data || {}, "closureAreaId");
+        const complaintCode = requireText(job.template_data || {}, "complaintCode", 40);
+        const { data: complaint, error: complaintError } = await client
+          .from("complaints")
+          .select("complaint_code,closure_area_id,status")
+          .eq("id", complaintId)
+          .maybeSingle();
+        if (complaintError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT");
+
+        const { data: closureArea, error: areaError } = await client
+          .from("areas")
+          .select("group_email,is_active")
+          .eq("id", closureAreaId)
+          .maybeSingle();
+        if (areaError) throw new Error("SOURCE_VALIDATION_TRANSIENT:CLOSURE_AREA");
+
+        const { data: communication, error: communicationError } = await client
+          .from("complaint_communications")
+          .select("id")
+          .eq("complaint_id", complaintId)
+          .eq("communication_type", "CLIENT_RESPONSE_EXPIRED")
+          .eq("outbox_id", job.id)
+          .maybeSingle();
+        if (communicationError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_COMMUNICATION");
+
+        const sourceIsValid = job.aggregate_id === complaintId
+          && complaint?.complaint_code === complaintCode
+          && complaint?.closure_area_id === closureAreaId
+          && complaint?.status === "CLOSED_NO_RESPONSE"
+          && closureArea?.is_active === true
+          && normalizeEmail(closureArea?.group_email || "") === normalizeEmail(job.recipient_email)
+          && Boolean(communication);
+        if (!sourceIsValid) {
+          await finish({
+            outcome: "FAILED_PERMANENT",
+            errorCode: "SOURCE_NO_LONGER_VALID",
+            errorMessage: "La queja ya no cumple las condiciones para notificar su seguimiento.",
+          });
+          summary.permanentFailure += 1;
+          continue;
+        }
+      } else if (job.template_key === "COMPLAINT_CLOSURE_RETURNED") {
+        const complaintId = requireUuid(job.template_data || {}, "complaintId");
+        const responsibleAreaId = requireUuid(job.template_data || {}, "responsibleAreaId");
+        const reviewId = requireUuid(job.template_data || {}, "reviewId");
+        const complaintCode = requireText(job.template_data || {}, "complaintCode", 40);
+        const { data: complaint, error: complaintError } = await client
+          .from("complaints")
+          .select("complaint_code,responsible_area_id")
+          .eq("id", complaintId)
+          .maybeSingle();
+        if (complaintError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT");
+
+        const { data: responsibleArea, error: areaError } = await client
+          .from("areas")
+          .select("group_email,is_active")
+          .eq("id", responsibleAreaId)
+          .maybeSingle();
+        if (areaError) throw new Error("SOURCE_VALIDATION_TRANSIENT:RESPONSIBLE_AREA");
+
+        const { data: review, error: reviewError } = await client
+          .from("complaint_closure_reviews")
+          .select("id,is_adequate")
+          .eq("id", reviewId)
+          .eq("complaint_id", complaintId)
+          .maybeSingle();
+        if (reviewError) throw new Error("SOURCE_VALIDATION_TRANSIENT:CLOSURE_REVIEW");
+
+        const { data: communication, error: communicationError } = await client
+          .from("complaint_communications")
+          .select("id")
+          .eq("complaint_id", complaintId)
+          .eq("communication_type", "CLOSURE_RETURNED")
+          .eq("outbox_id", job.id)
+          .maybeSingle();
+        if (communicationError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_COMMUNICATION");
+
+        const sourceIsValid = job.aggregate_id === complaintId
+          && complaint?.complaint_code === complaintCode
+          && complaint?.responsible_area_id === responsibleAreaId
+          && responsibleArea?.is_active === true
+          && normalizeEmail(responsibleArea?.group_email || "") === normalizeEmail(job.recipient_email)
+          && review?.is_adequate === false
+          && Boolean(communication);
+        if (!sourceIsValid) {
+          await finish({
+            outcome: "FAILED_PERMANENT",
+            errorCode: "SOURCE_NO_LONGER_VALID",
+            errorMessage: "La devolución de cierre ya no cumple las condiciones del aviso.",
+          });
+          summary.permanentFailure += 1;
+          continue;
+        }
+      } else if (job.template_key === "COMPLAINT_RESPONSE_REQUESTED") {
+        const complaintId = requireUuid(job.template_data || {}, "complaintId");
+        const actionVersionId = requireUuid(job.template_data || {}, "actionVersionId");
+        const responseId = requireUuid(job.template_data || {}, "responseId");
+        const responseToken = requireUuid(job.template_data || {}, "responseToken");
+        const complaintCode = requireText(job.template_data || {}, "complaintCode", 40);
+        const { data: responseTokenRow, error: responseError } = await client
+          .from("complaint_response_tokens")
+          .select("complaint_id,action_version_id,token_hash,status")
+          .eq("id", responseId)
+          .maybeSingle();
+        if (responseError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_RESPONSE");
+
+        const { data: complaint, error: complaintError } = await client
+          .from("complaints")
+          .select("complaint_code,status,current_action_version,client_id")
+          .eq("id", complaintId)
+          .maybeSingle();
+        if (complaintError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT");
+
+        const { data: actionVersion, error: versionError } = await client
+          .from("complaint_action_versions")
+          .select("version_number")
+          .eq("id", actionVersionId)
+          .maybeSingle();
+        if (versionError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_VERSION");
+
+        const { data: complaintClient, error: clientError } = complaint?.client_id
+          ? await client.from("clients").select("email").eq("id", complaint.client_id).maybeSingle()
+          : { data: null, error: null };
+        if (clientError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_CLIENT");
+
+        const { data: communication, error: communicationError } = await client
+          .from("complaint_communications")
+          .select("id")
+          .eq("complaint_id", complaintId)
+          .eq("action_version_id", actionVersionId)
+          .eq("communication_type", "CLIENT_RESPONSE_REQUESTED")
+          .eq("outbox_id", job.id)
+          .maybeSingle();
+        if (communicationError) throw new Error("SOURCE_VALIDATION_TRANSIENT:COMPLAINT_COMMUNICATION");
+
+        const sourceIsValid = job.aggregate_id === complaintId
+          && responseTokenRow?.complaint_id === complaintId
+          && responseTokenRow?.action_version_id === actionVersionId
+          && responseTokenRow?.status === "QUEUED"
+          && responseTokenRow.token_hash === await sha256Hex(responseToken)
+          && complaint?.complaint_code === complaintCode
+          && complaint?.status === "WAITING_CLIENT_RESPONSE"
+          && complaint.current_action_version === actionVersion?.version_number
+          && normalizeEmail(complaintClient?.email || "") === normalizeEmail(job.recipient_email)
+          && Boolean(communication);
+        if (!sourceIsValid) {
+          await finish({
+            outcome: "FAILED_PERMANENT",
+            errorCode: "SOURCE_NO_LONGER_VALID",
+            errorMessage: "La respuesta de la queja ya no cumple las condiciones de envío.",
+          });
+          summary.permanentFailure += 1;
+          continue;
+        }
+      } else if (job.template_key === "REFERRAL_CREATED") {
         const destinationAreaId = requireUuid(job.template_data || {}, "destinationAreaId");
         const { data: referral, error: referralError } = await client
           .from("attention_referrals")

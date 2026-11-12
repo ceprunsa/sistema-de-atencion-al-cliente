@@ -328,7 +328,7 @@ export const attentionsApi = {
         .select("id,name,display_order,is_active")
         .eq("is_active", true)
         .order("display_order"),
-      supabase.from("areas").select("id,name,group_email").order("name"),
+      supabase.from("areas").select("id,name,group_email,is_active,disabled_by_name,disabled_at").eq("is_active", true).order("name"),
       supabase.from("admission_processes").select("id,phase,custom_label,year,is_active,created_at,updated_at").eq("is_active", true).order("year", { ascending: false }),
     ]);
 
@@ -375,7 +375,14 @@ export const attentionsApi = {
         }),
       ),
       areas: (areas.data || []).map(
-        (row): Area => ({ id: row.id, name: row.name, groupEmail: row.group_email }),
+        (row): Area => ({
+          id: row.id,
+          name: row.name,
+          groupEmail: row.group_email,
+          isActive: row.is_active,
+          disabledByName: row.disabled_by_name,
+          disabledAt: row.disabled_at,
+        }),
       ),
       admissionProcesses: (admissionProcesses.data || []).map(mapAdmissionProcess),
     };
@@ -387,7 +394,7 @@ export const attentionsApi = {
       supabase.from("consultation_types").select("id,name,display_order,is_active").order("display_order"),
       supabase.from("consultation_topics").select("id,consultation_type_id,name,display_order,is_active").order("display_order"),
       supabase.from("kinship_types").select("id,name,display_order,is_active").order("display_order"),
-      supabase.from("areas").select("id,name,group_email").order("name"),
+      supabase.from("areas").select("id,name,group_email,is_active,disabled_by_name,disabled_at").order("name"),
       supabase.from("admission_processes").select("id,phase,custom_label,year,is_active,created_at,updated_at").order("year", { ascending: false }),
     ]);
     const firstError = [channels, types, topics, kinships, areas, admissionProcesses].find((result) => result.error)?.error;
@@ -398,7 +405,14 @@ export const attentionsApi = {
       consultationTypes: (types.data || []).map((row) => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
       consultationTopics: (topics.data || []).map((row) => ({ id: row.id, consultationTypeId: row.consultation_type_id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
       kinshipTypes: (kinships.data || []).map((row) => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: row.is_active })),
-      areas: (areas.data || []).map((row) => ({ id: row.id, name: row.name, groupEmail: row.group_email })),
+      areas: (areas.data || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        groupEmail: row.group_email,
+        isActive: row.is_active,
+        disabledByName: row.disabled_by_name,
+        disabledAt: row.disabled_at,
+      })),
       admissionProcesses: (admissionProcesses.data || []).map(mapAdmissionProcess),
     };
   },

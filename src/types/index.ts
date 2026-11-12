@@ -9,6 +9,9 @@ export interface Area {
   id: string;
   name: string;
   groupEmail: string | null;
+  isActive: boolean;
+  disabledByName: string | null;
+  disabledAt: string | null;
 }
 
 export type AttentionRequesterType = "APPLICANT" | "RELATIVE" | "OTHER";
@@ -145,6 +148,264 @@ export interface ClientInput {
   maternalSurname: string;
   email: string;
   phone: string;
+}
+
+export interface ComplaintAttentionMatch {
+  attentionId: string;
+  racCode: string;
+  attentionCreatedAt: string;
+  client: Client;
+}
+
+export interface ComplaintAreaOption {
+  id: string;
+  name: string;
+  groupEmail: string;
+}
+
+export interface NewComplaintCatalogs {
+  serviceChannels: ServiceChannel[];
+  responsibleAreas: ComplaintAreaOption[];
+  closureArea: ComplaintAreaOption | null;
+  canCreate: boolean;
+}
+
+export interface CreateComplaintInput {
+  requestId: string;
+  client: {
+    id?: string | null;
+    dni: string;
+    firstName: string;
+    middleName?: string | null;
+    paternalSurname: string;
+    maternalSurname: string;
+    email: string;
+    phone?: string | null;
+  };
+  attentionId?: string | null;
+  serviceChannelId: string;
+  responsibleAreaId: string;
+  description: string;
+}
+
+export interface CreatedComplaint {
+  id: string;
+  complaintCode: string;
+  notificationQueued: boolean;
+  reusedRequest: boolean;
+}
+
+export type ComplaintStatus =
+  | "PENDING_MANAGEMENT"
+  | "IN_MANAGEMENT"
+  | "WAITING_CLIENT_RESPONSE"
+  | "RETURNED_BY_CLIENT"
+  | "PENDING_CLOSURE_REVIEW"
+  | "RETURNED_BY_CLOSURE"
+  | "PENDING_SAC_EVALUATION"
+  | "CLOSED_AGREED"
+  | "CLOSED_NO_RESPONSE";
+
+export type ComplaintListScope =
+  | "ALL"
+  | "CREATED_BY_ME"
+  | "RESPONSIBLE_AREA"
+  | "CLOSURE_AREA";
+
+export interface ComplaintListItem {
+  id: string;
+  complaintCode: string;
+  status: ComplaintStatus;
+  descriptionPreview: string;
+  clientId: string;
+  clientDni: string;
+  clientName: string;
+  clientEmail: string;
+  attentionId: string | null;
+  racCode: string | null;
+  serviceChannelName: string;
+  responsibleAreaId: string;
+  responsibleAreaName: string;
+  closureAreaId: string;
+  closureAreaName: string;
+  createdById: string | null;
+  createdByName: string;
+  createdAt: string;
+  isCreator: boolean;
+  canManageResponsible: boolean;
+  canManageClosure: boolean;
+}
+
+export interface ComplaintActionVersion {
+  id: string;
+  versionNumber: number;
+  proceeds: boolean;
+  analysis: string;
+  actions: string;
+  clientExplanation: string | null;
+  recordedByName: string;
+  recordedAt: string;
+}
+
+export interface ComplaintClientResponse {
+  id: string;
+  actionVersionId: string;
+  versionNumber: number;
+  status: string;
+  sentAt: string | null;
+  expiresAt: string | null;
+  respondedAt: string | null;
+  disagreementReason: string | null;
+}
+
+export interface ComplaintManagementInput {
+  proceeds: boolean;
+  analysis: string;
+  actions: string;
+  clientExplanation: string | null;
+}
+
+export interface ComplaintManagementResult {
+  status: ComplaintStatus;
+  versionNumber: number;
+  actionVersionId: string;
+  notificationQueued: boolean;
+}
+
+export interface PublicComplaintResponseState {
+  state: "OPEN" | "INVALID" | "EXPIRED" | "CLOSED" | "PENDING_DELIVERY";
+  complaintCode?: string;
+  description?: string;
+  versionNumber?: number;
+  proceeds?: boolean;
+  analysis?: string;
+  actions?: string;
+  clientExplanation?: string | null;
+  expiresAt?: string;
+}
+
+export interface PublicComplaintResponseResult {
+  result: "AGREED" | "DISAGREED" | "INVALID" | "EXPIRED" | "CLOSED" | "INVALID_RESPONSE";
+}
+
+export interface ComplaintClosureReview {
+  id: string;
+  reviewNumber: number;
+  isAdequate: boolean;
+  observations: string;
+  reviewedByName: string;
+  reviewedAt: string;
+}
+
+export interface ComplaintClosureReviewInput {
+  isAdequate: boolean;
+  observations: string;
+}
+
+export interface ComplaintClosureReviewResult {
+  status: ComplaintStatus;
+  reviewNumber: number;
+  followUpOnly: boolean;
+  notificationQueued?: boolean;
+}
+
+export interface ComplaintSacDecisionInput {
+  shouldCreateSac: boolean;
+  comments: string;
+}
+
+export interface ComplaintSacDecisionResult {
+  status: ComplaintStatus;
+  shouldCreateSac: boolean;
+  sacId: string | null;
+  sacCode: string | null;
+  followUpOnly: boolean;
+}
+
+export interface ComplaintCommunication {
+  id: string;
+  type: string;
+  recipientEmail: string;
+  createdAt: string;
+  deliveryStatus: string | null;
+  acceptedAt: string | null;
+  attemptCount: number | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+}
+
+export interface ComplaintEvent {
+  id: number;
+  type: string;
+  previousStatus: string | null;
+  newStatus: string | null;
+  actorName: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface ComplaintDetail {
+  id: string;
+  complaintCode: string;
+  status: ComplaintStatus;
+  description: string;
+  createdById: string | null;
+  createdByName: string;
+  createdByEmail: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  currentActionVersion: number;
+  client: {
+    id: string;
+    dni: string;
+    displayName: string;
+    firstName: string;
+    middleName: string | null;
+    paternalSurname: string;
+    maternalSurname: string;
+    email: string;
+    phone: string | null;
+  };
+  linkedAttention: {
+    id: string;
+    racCode: string;
+    status: string;
+    createdAt: string;
+  } | null;
+  serviceChannel: {
+    id: string;
+    name: string;
+    detail: string;
+    category: ServiceChannelCategory | null;
+  };
+  responsibleArea: ComplaintAreaOption & { isActive: boolean };
+  closureArea: ComplaintAreaOption & { isActive: boolean };
+  permissions: {
+    isAdmin: boolean;
+    isCreator: boolean;
+    canManageResponsible: boolean;
+    canManageClosure: boolean;
+  };
+  actionVersions: ComplaintActionVersion[];
+  clientResponses: ComplaintClientResponse[];
+  closureReviews: ComplaintClosureReview[];
+  sacDecision: {
+    id: string;
+    shouldCreateSac: boolean;
+    comments: string;
+    decidedByName: string;
+    decidedAt: string;
+  } | null;
+  sac: {
+    id: string;
+    sacCode: string;
+    createdByName: string;
+    createdAt: string;
+  } | null;
+  communications: ComplaintCommunication[];
+  events: ComplaintEvent[];
 }
 
 export interface ClientAttentionListItem {

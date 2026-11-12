@@ -50,16 +50,28 @@ export interface Database {
           id: string;
           name: string;
           group_email: string | null;
+          is_active: boolean;
+          disabled_by: string | null;
+          disabled_by_name: string | null;
+          disabled_at: string | null;
         };
         Insert: {
           id?: string;
           name: string;
           group_email: string;
+          is_active?: boolean;
+          disabled_by?: string | null;
+          disabled_by_name?: string | null;
+          disabled_at?: string | null;
         };
         Update: {
           id?: string;
           name?: string;
           group_email?: string;
+          is_active?: boolean;
+          disabled_by?: string | null;
+          disabled_by_name?: string | null;
+          disabled_at?: string | null;
         };
         Relationships: [];
       };
@@ -863,6 +875,145 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      can_create_complaints: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
+      get_complaint_closure_area: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          area_id: string;
+          area_name: string;
+          group_email: string;
+          is_active: boolean;
+        }>;
+      };
+      find_attention_for_complaint: {
+        Args: { p_rac_code: string };
+        Returns: Array<{
+          attention_id: string;
+          rac_code: string;
+          client_id: string;
+          client_dni: string | null;
+          client_display_name: string;
+          client_first_name: string | null;
+          client_middle_name: string | null;
+          client_paternal_surname: string | null;
+          client_maternal_surname: string | null;
+          client_email: string | null;
+          client_phone: string | null;
+          client_created_at: string;
+          client_updated_at: string;
+          attention_created_at: string;
+        }>;
+      };
+      create_complaint: {
+        Args: {
+          p_request_id: string;
+          p_client: Json;
+          p_attention_id: string | null;
+          p_service_channel_id: string;
+          p_responsible_area_id: string;
+          p_description: string;
+        };
+        Returns: Json;
+      };
+      list_complaints: {
+        Args: {
+          p_page?: number;
+          p_limit?: number;
+          p_search?: string;
+          p_status?: string | null;
+          p_area_id?: string | null;
+          p_scope?: string;
+        };
+        Returns: Array<{
+          id: string;
+          complaint_code: string;
+          complaint_status: string;
+          description_preview: string;
+          client_id: string;
+          client_dni: string;
+          client_name: string;
+          client_email: string;
+          attention_id: string | null;
+          rac_code: string | null;
+          service_channel_name: string;
+          responsible_area_id: string;
+          responsible_area_name: string;
+          closure_area_id: string;
+          closure_area_name: string;
+          created_by: string | null;
+          created_by_name: string;
+          created_at: string;
+          is_creator: boolean;
+          can_manage_responsible: boolean;
+          can_manage_closure: boolean;
+          total_count: number;
+        }>;
+      };
+      get_pending_complaint_count: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      get_complaint_detail: {
+        Args: { p_complaint_id: string };
+        Returns: Json;
+      };
+      start_complaint_management: {
+        Args: { p_complaint_id: string };
+        Returns: Json;
+      };
+      submit_complaint_management: {
+        Args: {
+          p_complaint_id: string;
+          p_proceeds: boolean;
+          p_analysis: string;
+          p_actions: string;
+          p_client_explanation?: string | null;
+        };
+        Returns: Json;
+      };
+      get_public_complaint_response: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      respond_public_complaint: {
+        Args: {
+          p_token: string;
+          p_agreed: boolean;
+          p_disagreement_reason?: string | null;
+        };
+        Returns: Json;
+      };
+      expire_pending_complaint_responses: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      review_complaint_closure: {
+        Args: {
+          p_complaint_id: string;
+          p_is_adequate: boolean;
+          p_observations: string;
+        };
+        Returns: Json;
+      };
+      decide_complaint_sac: {
+        Args: {
+          p_complaint_id: string;
+          p_should_create_sac: boolean;
+          p_comments: string;
+        };
+        Returns: Json;
+      };
+      set_area_active: {
+        Args: { p_area_id: string; p_is_active: boolean };
+        Returns: void;
+      };
+      set_complaint_closure_area: {
+        Args: { p_area_id: string };
+        Returns: Json;
+      };
       get_dashboard_statistics: {
         Args: {
           p_date_from: string;

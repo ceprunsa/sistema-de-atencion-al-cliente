@@ -24,6 +24,10 @@ import AdmissionProcesses from "./pages/AdmissionProcesses";
 import Clients from "./pages/Clients";
 import ClientForm from "./pages/ClientForm";
 import ClientDetail from "./pages/ClientDetail";
+import NewComplaint from "./pages/NewComplaint";
+import Complaints from "./pages/Complaints";
+import ComplaintDetail from "./pages/ComplaintDetail";
+import PublicComplaintResponse from "./pages/PublicComplaintResponse";
 
 export const router = createBrowserRouter([
   {
@@ -33,6 +37,10 @@ export const router = createBrowserRouter([
   {
     path: "/survey/:token",
     element: <PublicSurvey />,
+  },
+  {
+    path: "/complaint-response/:token",
+    element: <PublicComplaintResponse />,
   },
   {
     path: "/",
@@ -167,6 +175,30 @@ export const router = createBrowserRouter([
           <AdminRoute>
             <EditAttention />
           </AdminRoute>
+        ),
+      },
+      {
+        path: "complaints",
+        element: (
+          <ProtectedRoute>
+            <Complaints />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "complaints/new",
+        element: (
+          <ProtectedRoute>
+            <NewComplaint />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "complaints/:id",
+        element: (
+          <ProtectedRoute>
+            <ComplaintDetail />
+          </ProtectedRoute>
         ),
       },
       {

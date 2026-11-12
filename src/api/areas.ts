@@ -1,7 +1,14 @@
 import { supabase } from "../supabase/config";
 import type { Area } from "../types";
 
-type AreaRow = { id: string; name: string; group_email: string | null };
+type AreaRow = {
+  id: string;
+  name: string;
+  group_email: string | null;
+  is_active: boolean;
+  disabled_by_name: string | null;
+  disabled_at: string | null;
+};
 
 export interface AreaInput {
   name: string;
@@ -12,6 +19,9 @@ const mapArea = (row: AreaRow): Area => ({
   id: row.id,
   name: row.name,
   groupEmail: row.group_email,
+  isActive: row.is_active,
+  disabledByName: row.disabled_by_name,
+  disabledAt: row.disabled_at,
 });
 
 const throwAreaError = (error: { code?: string; message?: string }) => {
@@ -36,7 +46,8 @@ export const areasApi = {
   list: async (): Promise<Area[]> => {
     const { data, error } = await supabase
       .from("areas")
-      .select("id,name,group_email")
+      .select("id,name,group_email,is_active,disabled_by_name,disabled_at")
+      .order("is_active", { ascending: false })
       .order("name", { ascending: true });
     if (error) throwAreaError(error);
     return ((data || []) as AreaRow[]).map(mapArea);
@@ -49,7 +60,7 @@ export const areasApi = {
         name: values.name.trim(),
         group_email: values.groupEmail.trim().toLowerCase(),
       })
-      .select("id,name,group_email")
+      .select("id,name,group_email,is_active,disabled_by_name,disabled_at")
       .single();
     if (error) throwAreaError(error);
     return mapArea(data as AreaRow);
@@ -63,7 +74,7 @@ export const areasApi = {
         group_email: values.groupEmail.trim().toLowerCase(),
       })
       .eq("id", id)
-      .select("id,name,group_email")
+      .select("id,name,group_email,is_active,disabled_by_name,disabled_at")
       .single();
     if (error) throwAreaError(error);
     return mapArea(data as AreaRow);
@@ -71,6 +82,27 @@ export const areasApi = {
 
   remove: async (id: string): Promise<void> => {
     const { error } = await supabase.from("areas").delete().eq("id", id);
+    if (error) throwAreaError(error);
+  },
+
+  setStatus: async (id: string, isActive: boolean): Promise<void> => {
+    const { error } = await supabase.rpc("set_area_active", {
+      p_area_id: id,
+      p_is_active: isActive,
+    });
+    if (error) throwAreaError(error);
+  },
+
+  getComplaintClosureArea: async (): Promise<string | null> => {
+    const { data, error } = await supabase.rpc("get_complaint_closure_area");
+    if (error) throwAreaError(error);
+    return data?.[0]?.area_id || null;
+  },
+
+  setComplaintClosureArea: async (areaId: string): Promise<void> => {
+    const { error } = await supabase.rpc("set_complaint_closure_area", {
+      p_area_id: areaId,
+    });
     if (error) throwAreaError(error);
   },
 };

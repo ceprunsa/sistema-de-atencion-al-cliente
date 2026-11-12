@@ -3,11 +3,12 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
-import { Building2, CalendarRange, ClipboardPlus, ContactRound, Headphones, Home, Inbox, MonitorSmartphone, Users, X, LogOut, ChevronRight, User } from "lucide-react";
+import { Building2, CalendarRange, ClipboardPlus, ContactRound, Headphones, Home, Inbox, MessageSquareWarning, MonitorSmartphone, Users, X, LogOut, ChevronRight, User } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
 import { usePendingReferralCount } from "../hooks/useReferrals";
+import { usePendingComplaintCount } from "../hooks/useComplaints";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { pendingCount } = usePendingReferralCount();
+  const { pendingCount: pendingComplaintCount } = usePendingComplaintCount();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -183,6 +185,39 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                       </span>
                     )}
                     {location.pathname.startsWith("/referrals") && <ChevronRight size={16} />}
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/complaints"
+                  className={`flex items-center p-2 rounded-md hover:bg-gray-100 transition-colors duration-200 ${
+                    location.pathname.startsWith("/complaints")
+                      ? "bg-[#1A2855]/10 text-[#1A2855] font-medium"
+                      : "text-gray-700"
+                  }`}
+                  onClick={closeSidebar}
+                >
+                  <MessageSquareWarning size={18} className="mr-3" />
+                  <span>Quejas</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    {pendingComplaintCount > 0 && (
+                      <span
+                        className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"
+                        title={
+                          pendingComplaintCount
+                          + (pendingComplaintCount === 1
+                            ? " queja pendiente para tu área"
+                            : " quejas pendientes para tu área")
+                        }
+                        aria-label="Quejas pendientes"
+                      >
+                        {pendingComplaintCount > 99 ? "99+" : pendingComplaintCount}
+                      </span>
+                    )}
+                    {location.pathname.startsWith("/complaints") && (
+                      <ChevronRight size={16} />
+                    )}
                   </span>
                 </Link>
               </li>

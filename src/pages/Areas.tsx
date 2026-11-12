@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { Building2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Building2, Pencil, Plus, Power, ShieldCheck, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import ConfirmModal from "../components/ConfirmModal";
 import { useAreas } from "../hooks/useAreas";
@@ -15,16 +15,28 @@ const Areas = () => {
     areas,
     isLoading,
     isError,
+    closureAreaId,
+    isLoadingClosureArea,
     createArea,
     updateArea,
     deleteArea,
+    setAreaStatus,
+    setComplaintClosureArea,
     isSaving,
     isDeleting,
+    isChangingStatus,
+    isSavingClosureArea,
   } = useAreas();
   const [name, setName] = useState("");
   const [groupEmail, setGroupEmail] = useState("");
   const [editingArea, setEditingArea] = useState<Area | null>(null);
   const [areaToDelete, setAreaToDelete] = useState<Area | null>(null);
+  const [areaToToggle, setAreaToToggle] = useState<Area | null>(null);
+  const [selectedClosureAreaId, setSelectedClosureAreaId] = useState("");
+
+  useEffect(() => {
+    setSelectedClosureAreaId(closureAreaId || "");
+  }, [closureAreaId]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,6 +82,36 @@ const Areas = () => {
     }
   };
 
+  const confirmStatusChange = async () => {
+    if (!areaToToggle) return;
+    try {
+      await setAreaStatus({
+        id: areaToToggle.id,
+        isActive: !areaToToggle.isActive,
+      });
+      toast.success(
+        areaToToggle.isActive ? "Área inhabilitada." : "Área reactivada.",
+      );
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setAreaToToggle(null);
+    }
+  };
+
+  const saveClosureArea = async () => {
+    if (!selectedClosureAreaId) {
+      toast.error("Selecciona un área activa para el cierre de quejas.");
+      return;
+    }
+    try {
+      await setComplaintClosureArea(selectedClosureAreaId);
+      toast.success("Área de cierre de quejas configurada.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
   const startEditing = (area: Area) => {
     setEditingArea(area);
     setName(area.name);
@@ -90,6 +132,48 @@ const Areas = () => {
           Cada usuario puede pertenecer opcionalmente a una sola área.
         </p>
       </div>
+
+      <section className="mb-6 rounded-lg border border-blue-100 bg-blue-50 p-5">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 shrink-0 text-blue-700" size={22} />
+          <div className="flex-1">
+            <h2 className="font-semibold text-blue-950">
+              Área de seguimiento y cierre de quejas
+            </h2>
+            <p className="mt-1 text-sm text-blue-800">
+              Solo puede existir una. No podrá cambiarse mientras haya quejas
+              abiertas.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <select
+                value={selectedClosureAreaId}
+                onChange={(event) => setSelectedClosureAreaId(event.target.value)}
+                disabled={isLoading || isLoadingClosureArea}
+                className="block min-w-0 flex-1 rounded-md border-blue-200 bg-white shadow-sm"
+              >
+                <option value="">Selecciona un área activa</option>
+                {areas.filter((area) => area.isActive).map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => void saveClosureArea()}
+                disabled={
+                  !selectedClosureAreaId
+                  || selectedClosureAreaId === closureAreaId
+                  || isSavingClosureArea
+                }
+                className="btn btn-primary disabled:opacity-60"
+              >
+                {isSavingClosureArea ? "Guardando..." : "Guardar configuración"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <form onSubmit={handleSubmit} className="mb-6 bg-white border border-gray-100 shadow rounded-lg p-5">
         <div className="grid gap-4 md:grid-cols-2">
@@ -158,9 +242,32 @@ const Areas = () => {
                     <p className={`mt-0.5 truncate text-sm ${area.groupEmail ? "text-gray-500" : "text-amber-700"}`}>
                       {area.groupEmail || "Correo de grupo pendiente de configurar"}
                     </p>
+                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      area.isActive
+                        ? "bg-green-100 text-green-800"
+                        : "bg-gray-200 text-gray-700"
+                    }`}>
+                      {area.isActive ? "Activa" : "Inhabilitada"}
+                    </span>
+                    {closureAreaId === area.id && (
+                      <span className="ml-2 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                        Cierre de quejas
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1">
+                  <button
+                    onClick={() => setAreaToToggle(area)}
+                    className={`p-2 rounded-md ${
+                      area.isActive
+                        ? "text-amber-700 hover:bg-amber-50"
+                        : "text-green-700 hover:bg-green-50"
+                    }`}
+                    title={area.isActive ? "Inhabilitar área" : "Reactivar área"}
+                  >
+                    <Power size={18} />
+                  </button>
                   <button onClick={() => startEditing(area)} className="p-2 rounded-md text-blue-600 hover:bg-blue-50" title="Editar área">
                     <Pencil size={18} />
                   </button>
@@ -183,6 +290,20 @@ const Areas = () => {
         confirmLabel="Eliminar"
         isDanger
         isLoading={isDeleting}
+      />
+      <ConfirmModal
+        isOpen={!!areaToToggle}
+        onClose={() => setAreaToToggle(null)}
+        onConfirm={confirmStatusChange}
+        title={areaToToggle?.isActive ? "Inhabilitar área" : "Reactivar área"}
+        message={
+          areaToToggle?.isActive
+            ? "El área dejará de estar disponible para nuevas quejas. No será posible si es el área de cierre o tiene quejas abiertas."
+            : "El área volverá a estar disponible para nuevas quejas."
+        }
+        confirmLabel={areaToToggle?.isActive ? "Inhabilitar" : "Reactivar"}
+        isDanger={areaToToggle?.isActive}
+        isLoading={isChangingStatus}
       />
     </div>
   );

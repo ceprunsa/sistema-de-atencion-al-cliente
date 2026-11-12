@@ -11,7 +11,7 @@
 --
 -- ADVERTENCIA: la eliminacion es irreversible. Crea una copia de seguridad
 -- antes de ejecutar este archivo en el SQL Editor de Supabase.
--- Compatible con las tablas instaladas hasta 18_remove_delegate_name.sql.
+-- Compatible con las tablas instaladas hasta 25_complaint_sac_decision.sql.
 
 begin;
 
@@ -72,7 +72,12 @@ begin
       'attention_surveys', 'referral_surveys', 'email_outbox',
       'email_delivery_attempts', 'dni_lookup_rate_limits',
       'dni_lookup_attempts', 'public_survey_rate_limits',
-      'admission_processes', 'attention_admission_processes'
+      'admission_processes', 'attention_admission_processes',
+      'complaint_settings', 'complaint_counters', 'sac_counters',
+      'complaints', 'complaint_action_versions',
+      'complaint_response_tokens', 'complaint_closure_reviews',
+      'complaint_sac_decisions', 'corrective_action_requests',
+      'complaint_communications', 'complaint_events'
     ]::text[]);
 
   if v_unknown_tables is not null then
@@ -84,6 +89,17 @@ $$;
 -- Todas las tablas relacionadas se incluyen en la misma sentencia para
 -- respetar sus claves foraneas sin utilizar CASCADE sobre tablas no previstas.
 truncate table
+  public.complaint_events,
+  public.complaint_communications,
+  public.corrective_action_requests,
+  public.complaint_sac_decisions,
+  public.complaint_closure_reviews,
+  public.complaint_response_tokens,
+  public.complaint_action_versions,
+  public.complaints,
+  public.complaint_counters,
+  public.sac_counters,
+  public.complaint_settings,
   public.referral_surveys,
   public.attention_surveys,
   public.attention_admission_processes,
@@ -185,6 +201,20 @@ begin
     or exists (select 1 from public.public_survey_rate_limits) then
     raise exception 'Validacion fallida: permanecen datos que debian eliminarse.';
   end if;
+
+  if exists (select 1 from public.complaints)
+    or exists (select 1 from public.complaint_action_versions)
+    or exists (select 1 from public.complaint_response_tokens)
+    or exists (select 1 from public.complaint_closure_reviews)
+    or exists (select 1 from public.complaint_sac_decisions)
+    or exists (select 1 from public.corrective_action_requests)
+    or exists (select 1 from public.complaint_communications)
+    or exists (select 1 from public.complaint_events)
+    or exists (select 1 from public.complaint_settings)
+    or exists (select 1 from public.complaint_counters)
+    or exists (select 1 from public.sac_counters) then
+    raise exception 'Validacion fallida: permanecen datos del modulo de quejas.';
+  end if;
 end;
 $$;
 
@@ -218,4 +248,15 @@ select
   (select count(*) from public.dni_lookup_rate_limits) as dni_lookup_rate_limits,
   (select count(*) from public.public_survey_rate_limits) as public_survey_rate_limits,
   (select count(*) from public.user_invitations) as user_invitations,
-  (select count(*) from public.rac_counters) as rac_counters;
+  (select count(*) from public.rac_counters) as rac_counters,
+  (select count(*) from public.complaint_settings) as complaint_settings,
+  (select count(*) from public.complaints) as complaints,
+  (select count(*) from public.complaint_action_versions) as complaint_action_versions,
+  (select count(*) from public.complaint_response_tokens) as complaint_response_tokens,
+  (select count(*) from public.complaint_closure_reviews) as complaint_closure_reviews,
+  (select count(*) from public.complaint_sac_decisions) as complaint_sac_decisions,
+  (select count(*) from public.corrective_action_requests) as corrective_action_requests,
+  (select count(*) from public.complaint_communications) as complaint_communications,
+  (select count(*) from public.complaint_events) as complaint_events,
+  (select count(*) from public.complaint_counters) as complaint_counters,
+  (select count(*) from public.sac_counters) as sac_counters;
