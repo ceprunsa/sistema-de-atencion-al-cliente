@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Eye, Loader2, Plus, Search, X } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Pagination from "../components/Pagination";
-import { useAttentions } from "../hooks/useAttentions";
+import AttentionExportManager from "../components/AttentionExportManager";
+import { useAttentionFilterOptions, useAttentions } from "../hooks/useAttentions";
 import { formatLocalDate } from "../utils/dateUtils";
 import { useAuth } from "../hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -20,10 +21,12 @@ const referralLabels: Record<string, string> = { NONE: "Sin derivación", PENDIN
 
 const Attentions = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAdmin } = useAuth();
   const registrationAccess = useAttentionRegistrationAccess();
   const areas = useQuery({ queryKey: ["areas", "attention-filter"], queryFn: areasApi.list, enabled: isAdmin });
   const admissionProcesses = useAdmissionProcesses();
+  const filterOptions = useAttentionFilterOptions();
   const {
     attentions,
     pagination,
@@ -39,12 +42,34 @@ const Attentions = () => {
     referralStatus,
     areaId,
     admissionProcessId,
+    serviceChannelId,
+    workstationId,
     setSurveyStatus,
     setReferralStatus,
     setAreaId,
     setAdmissionProcessId,
+    setServiceChannelId,
+    setWorkstationId,
   } = useAttentions();
   const [searchInput, setSearchInput] = useState(search);
+  const serviceChannels = (filterOptions.data || []).filter((option) => option.type === "SERVICE_CHANNEL");
+  const workstations = (filterOptions.data || []).filter((option) => option.type === "WORKSTATION");
+  const detailNavigationState = {
+    attentionListPath: `${location.pathname}${location.search}`,
+  };
+  const currentExportFilters = {
+    search,
+    surveyStatus,
+    referralStatus,
+    areaId: isAdmin ? areaId : "",
+    admissionProcessId,
+    serviceChannelId,
+    workstationId,
+  };
+
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -79,25 +104,28 @@ const Attentions = () => {
             Consulta el historial por código RAC, DNI, nombre o correo del cliente.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleNewAttention}
-          disabled={registrationAccess.isLoading}
-          className="btn btn-primary inline-flex items-center justify-center disabled:cursor-wait disabled:opacity-60"
-        >
-          {registrationAccess.isLoading
-            ? <Loader2 size={18} className="mr-2 animate-spin" />
-            : <Plus size={18} className="mr-2" />}
-          Nueva atención
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <AttentionExportManager isAdmin={isAdmin} currentFilters={currentExportFilters} />
+          <button
+            type="button"
+            onClick={handleNewAttention}
+            disabled={registrationAccess.isLoading}
+            className="btn btn-primary inline-flex items-center justify-center disabled:cursor-wait disabled:opacity-60"
+          >
+            {registrationAccess.isLoading
+              ? <Loader2 size={18} className="mr-2 animate-spin" />
+              : <Plus size={18} className="mr-2" />}
+            Nueva atención
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="mb-5 rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
         <label htmlFor="attentionSearch" className="block text-sm font-medium text-gray-700">
           Buscar atención
         </label>
-        <div className="mt-1 grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_180px_180px_190px_190px_auto]">
-          <div className="relative flex-1">
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="relative sm:col-span-2 xl:col-span-3">
             <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               id="attentionSearch"
@@ -116,6 +144,14 @@ const Attentions = () => {
           <select value={surveyStatus} onChange={(event) => setSurveyStatus(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las encuestas</option>{Object.entries(surveyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <select value={referralStatus} onChange={(event) => setReferralStatus(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las derivaciones</option>{Object.entries(referralLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <select value={admissionProcessId} onChange={(event) => setAdmissionProcessId(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todos los procesos</option>{admissionProcesses.processes.map((process) => <option key={process.id} value={process.id}>{formatAdmissionProcess(process)}</option>)}</select>
+          <select value={serviceChannelId} onChange={(event) => setServiceChannelId(event.target.value)} disabled={filterOptions.isLoading} className="rounded-md border-gray-300 text-sm disabled:bg-gray-50">
+            <option value="">Todos los medios</option>
+            {serviceChannels.map((option) => <option key={option.id} value={option.id}>{option.name}{option.isActive ? "" : " (Inhabilitado)"}</option>)}
+          </select>
+          <select value={workstationId} onChange={(event) => setWorkstationId(event.target.value)} disabled={filterOptions.isLoading} className="rounded-md border-gray-300 text-sm disabled:bg-gray-50">
+            <option value="">Todas las mesas</option>
+            {workstations.map((option) => <option key={option.id} value={option.id}>{option.name}{option.isActive ? "" : " (Inhabilitada)"}</option>)}
+          </select>
           {isAdmin ? <select value={areaId} onChange={(event) => setAreaId(event.target.value)} className="rounded-md border-gray-300 text-sm"><option value="">Todas las áreas</option>{(areas.data || []).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select> : <div className="hidden lg:block" />}
           <button type="submit" className="btn btn-secondary inline-flex items-center justify-center">
             <Search size={17} className="mr-2" />
@@ -154,7 +190,7 @@ const Attentions = () => {
             {attentions.map((attention) => (
               <div key={attention.id} className="p-4 transition-colors hover:bg-gray-50 lg:grid lg:grid-cols-12 lg:items-center lg:gap-3 lg:px-5">
                 <div className="lg:col-span-2">
-                  <Link to={`/attentions/${attention.id}`} className="font-semibold text-[#1A2855] hover:underline">
+                  <Link to={`/attentions/${attention.id}`} state={detailNavigationState} className="font-semibold text-[#1A2855] hover:underline">
                     {attention.racCode}
                   </Link>
                 </div>
@@ -162,7 +198,10 @@ const Attentions = () => {
                   <p className="text-sm font-medium text-gray-900">{attention.clientName}</p>
                   <p className="text-xs text-gray-500">{attention.clientDni ? `DNI ${attention.clientDni}` : "Sin DNI"}</p>
                 </div>
-                <div className="mt-2 text-sm text-gray-600 lg:col-span-2 lg:mt-0">{attention.serviceChannelName}</div>
+                <div className="mt-2 lg:col-span-2 lg:mt-0">
+                  <p className="text-sm text-gray-600">{attention.serviceChannelName}</p>
+                  <p className="text-xs text-gray-400">{attention.workstationName || "Mesa no disponible"}</p>
+                </div>
                 <div className="mt-2 lg:col-span-2 lg:mt-0">
                   <p className="text-sm text-gray-600">{formatLocalDate(attention.createdAt)}</p>
                   <p className="text-xs text-gray-400">{attention.createdByName}</p>
@@ -175,7 +214,7 @@ const Attentions = () => {
                   <p className={`mt-0.5 text-xs font-medium ${attention.referralStatus === "PENDING" ? "text-amber-700" : "text-gray-500"}`}>{referralLabels[attention.referralStatus]}{attention.referralAreaName ? ` · ${attention.referralAreaName}` : ""}</p>
                 </div>
                 <div className="mt-3 flex justify-end lg:col-span-1 lg:mt-0">
-                  <Link to={`/attentions/${attention.id}`} title="Ver detalle" className="rounded-md p-2 text-blue-600 hover:bg-blue-50">
+                  <Link to={`/attentions/${attention.id}`} state={detailNavigationState} title="Ver detalle" className="rounded-md p-2 text-blue-600 hover:bg-blue-50">
                     <Eye size={18} />
                   </Link>
                 </div>

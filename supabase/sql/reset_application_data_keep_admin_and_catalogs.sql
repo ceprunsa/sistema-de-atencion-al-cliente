@@ -11,7 +11,7 @@
 --
 -- ADVERTENCIA: la eliminacion es irreversible. Crea una copia de seguridad
 -- antes de ejecutar este archivo en el SQL Editor de Supabase.
--- Compatible con las tablas instaladas hasta 25_complaint_sac_decision.sql.
+-- Compatible con las tablas instaladas hasta 28_attention_exports.sql.
 
 begin;
 
@@ -77,7 +77,8 @@ begin
       'complaints', 'complaint_action_versions',
       'complaint_response_tokens', 'complaint_closure_reviews',
       'complaint_sac_decisions', 'corrective_action_requests',
-      'complaint_communications', 'complaint_events'
+      'complaint_communications', 'complaint_events',
+      'attention_export_jobs'
     ]::text[]);
 
   if v_unknown_tables is not null then
@@ -89,6 +90,7 @@ $$;
 -- Todas las tablas relacionadas se incluyen en la misma sentencia para
 -- respetar sus claves foraneas sin utilizar CASCADE sobre tablas no previstas.
 truncate table
+  public.attention_export_jobs,
   public.complaint_events,
   public.complaint_communications,
   public.corrective_action_requests,

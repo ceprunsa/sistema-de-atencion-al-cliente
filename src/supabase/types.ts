@@ -702,6 +702,33 @@ export interface Database {
           },
         ];
       };
+      attention_export_jobs: {
+        Row: {
+          id: string; requested_by: string; requested_by_name: string; is_admin: boolean;
+          export_mode: string; filters: Json; request_hash: string; status: string;
+          snapshot_at: string; total_rows: number; progress_rows: number; attempt_count: number;
+          file_name: string; storage_path: string | null; error_code: string | null;
+          error_message: string | null; started_at: string | null; completed_at: string | null;
+          expires_at: string | null; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; requested_by: string; requested_by_name: string; is_admin: boolean;
+          export_mode: string; filters?: Json; request_hash: string; status?: string;
+          snapshot_at?: string; total_rows?: number; progress_rows?: number; attempt_count?: number;
+          file_name: string; storage_path?: string | null; error_code?: string | null;
+          error_message?: string | null; started_at?: string | null; completed_at?: string | null;
+          expires_at?: string | null; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; requested_by?: string; requested_by_name?: string; is_admin?: boolean;
+          export_mode?: string; filters?: Json; request_hash?: string; status?: string;
+          snapshot_at?: string; total_rows?: number; progress_rows?: number; attempt_count?: number;
+          file_name?: string; storage_path?: string | null; error_code?: string | null;
+          error_message?: string | null; started_at?: string | null; completed_at?: string | null;
+          expires_at?: string | null; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
       public_survey_rate_limits: {
         Row: {
           scope_type: string; scope_key: string; window_started_at: string;
@@ -1397,6 +1424,62 @@ export interface Database {
           created_by_name: string; created_at: string; survey_status: string;
           referral_status: string; referral_area_id: string | null; referral_area_name: string | null;
           total_count: number;
+        }>;
+      };
+      list_attention_filter_options: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          option_type: string;
+          id: string;
+          name: string;
+          is_active: boolean;
+        }>;
+      };
+      list_customer_attentions_v4: {
+        Args: {
+          p_page?: number; p_limit?: number; p_search?: string; p_survey_status?: string | null;
+          p_referral_status?: string | null; p_area_id?: string | null; p_admission_process_id?: string | null;
+          p_service_channel_id?: string | null; p_workstation_id?: string | null;
+        };
+        Returns: Array<{
+          id: string; rac_code: string; attention_status: string; requester_type: string;
+          client_dni: string | null; client_name: string; service_channel_id: string;
+          service_channel_name: string; workstation_id: string | null; workstation_name: string | null;
+          created_by_name: string; created_at: string; survey_status: string;
+          referral_status: string; referral_area_id: string | null; referral_area_name: string | null;
+          total_count: number;
+        }>;
+      };
+      request_attention_export: {
+        Args: {
+          p_mode?: string; p_search?: string; p_survey_status?: string | null;
+          p_referral_status?: string | null; p_area_id?: string | null;
+          p_admission_process_id?: string | null; p_service_channel_id?: string | null;
+          p_workstation_id?: string | null; p_start_date?: string | null; p_end_date?: string | null;
+        };
+        Returns: Array<{
+          job_id: string; job_status: string; total_rows: number; file_name: string;
+          expires_at: string | null; reused: boolean;
+        }>;
+      };
+      retry_attention_export: { Args: { p_job_id: string }; Returns: void };
+      claim_attention_export_job: {
+        Args: { p_job_id: string };
+        Returns: Database["public"]["Tables"]["attention_export_jobs"]["Row"][];
+      };
+      get_attention_export_batch: {
+        Args: {
+          p_job_id: string; p_after_created_at?: string | null;
+          p_after_id?: string | null; p_limit?: number;
+        };
+        Returns: Array<{
+          attention_id: string; rac_code: string; created_at: string; attention_status: string;
+          client_name: string; client_dni: string | null; client_email: string | null;
+          client_phone: string | null; service_channel: string; workstation: string | null;
+          created_by_name: string; requester_type: string; admission_processes: string | null;
+          consultation_types: string | null; consultation_topics: string | null;
+          conclusion: string; survey_status: string; referral_area: string | null;
+          referral_status: string; referral_conclusion: string | null;
         }>;
       };
     };

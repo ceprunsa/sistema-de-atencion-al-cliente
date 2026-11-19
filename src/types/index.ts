@@ -641,13 +641,59 @@ export interface AttentionListItem {
   requesterType: AttentionRequesterType;
   clientDni: string | null;
   clientName: string;
+  serviceChannelId: string;
   serviceChannelName: string;
+  workstationId: string | null;
+  workstationName: string | null;
   createdByName: string;
   createdAt: string;
   surveyStatus: SurveyStatus;
   referralStatus: ReferralStatus;
   referralAreaId: string | null;
   referralAreaName: string | null;
+}
+
+export interface AttentionFilterOption {
+  type: "SERVICE_CHANNEL" | "WORKSTATION";
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export type AttentionExportMode = "ALL" | "FILTERED" | "DATE_RANGE";
+export type AttentionExportStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "EXPIRED";
+
+export interface AttentionExportFilters {
+  search: string;
+  surveyStatus: string;
+  referralStatus: string;
+  areaId: string;
+  admissionProcessId: string;
+  serviceChannelId: string;
+  workstationId: string;
+}
+
+export interface AttentionExportJob {
+  id: string;
+  mode: AttentionExportMode;
+  filters: Record<string, unknown>;
+  status: AttentionExportStatus;
+  totalRows: number;
+  progressRows: number;
+  attemptCount: number;
+  fileName: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  expiresAt: string | null;
+}
+
+export interface StartAttentionExportInput {
+  mode: AttentionExportMode;
+  filters: AttentionExportFilters;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface AttentionTopicDetail {

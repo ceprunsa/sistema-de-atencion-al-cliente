@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { ArrowLeft, Ban, CalendarClock, ExternalLink, Headphones, Mail, MapPin, Paperclip, Pencil, Send, ShieldX, Star, UserRound, X } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../hooks/useAuth";
 import { useAttention, useAttentionActions } from "../hooks/useAttentions";
@@ -10,6 +10,12 @@ import { currentDateTimeLocalInput, formatLimaDateTime, toDateTimeLocalInput, to
 
 const AttentionDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigationState = location.state as { attentionListPath?: unknown } | null;
+  const attentionListPath = typeof navigationState?.attentionListPath === "string"
+    && /^\/attentions(?:\?|$)/.test(navigationState.attentionListPath)
+    ? navigationState.attentionListPath
+    : "/attentions";
   const { data: attention, isLoading, isError, error } = useAttention(id);
   const { user, isAdmin } = useAuth();
   const { disableAttention, concludeReferral, disableReferral, setEmailResponseAt, isDisabling, isConcluding, isDisablingReferral, isSettingEmailResponse } = useAttentionActions();
@@ -31,7 +37,7 @@ const AttentionDetail = () => {
     return (
       <div className="mx-auto max-w-4xl rounded-lg border border-gray-200 bg-white p-8 text-center">
         <p className="text-gray-600">La atención no existe o no tienes permiso para verla.</p>
-        <Link to="/attentions" className="btn btn-secondary mt-5 inline-flex">Volver al listado</Link>
+        <Link to={attentionListPath} className="btn btn-secondary mt-5 inline-flex">Volver al listado</Link>
       </div>
     );
   }
@@ -130,7 +136,7 @@ const AttentionDetail = () => {
 
   return (
     <div className="w-full max-w-5xl mx-auto">
-      <Link to="/attentions" className="mb-5 inline-flex items-center text-sm font-medium text-gray-600 hover:text-[#1A2855]">
+      <Link to={attentionListPath} className="mb-5 inline-flex items-center text-sm font-medium text-gray-600 hover:text-[#1A2855]">
         <ArrowLeft size={17} className="mr-1" /> Volver a atenciones
       </Link>
 

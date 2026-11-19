@@ -18,6 +18,7 @@
 --   * encuestas de atencion y derivacion;
 --   * limites publicos vinculados a encuestas;
 --   * correos en cola e intentos de entrega vinculados a eventos RAC.
+--   * trabajos de exportacion RAC (los archivos del bucket se limpian por la Edge Function).
 -- Las quejas vinculadas a un RAC se conservan como quejas independientes.
 --
 -- ADVERTENCIA: la eliminacion es irreversible. Crea una copia de seguridad
@@ -85,6 +86,7 @@ where aggregate_type in ('ATTENTION', 'REFERRAL');
 -- Todas las dependencias del historial se incluyen expresamente. No se usa
 -- CASCADE para impedir que una tabla futura sea borrada de manera silenciosa.
 truncate table
+  public.attention_export_jobs,
   public.referral_surveys,
   public.attention_surveys,
   public.attention_admission_processes,
@@ -104,6 +106,7 @@ begin
     or exists (select 1 from public.attention_surveys)
     or exists (select 1 from public.referral_surveys)
     or exists (select 1 from public.rac_counters)
+    or exists (select 1 from public.attention_export_jobs)
     or exists (
       select 1 from public.email_outbox
       where aggregate_type in ('ATTENTION', 'REFERRAL')

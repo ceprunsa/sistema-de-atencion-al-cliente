@@ -22,6 +22,49 @@ interface PaginationProps {
   bottom?: boolean;
 }
 
+type PageNavigationItem =
+  | { type: "page"; value: number }
+  | { type: "ellipsis"; key: string };
+
+const getPageNavigationItems = (
+  totalPages: number,
+  currentPage: number,
+): PageNavigationItem[] => {
+  if (totalPages <= 10) {
+    return Array.from({ length: totalPages }, (_, index) => ({
+      type: "page" as const,
+      value: index + 1,
+    }));
+  }
+
+  const pages = new Set<number>();
+  const addRange = (from: number, to: number) => {
+    for (let page = Math.max(1, from); page <= Math.min(totalPages, to); page += 1) {
+      pages.add(page);
+    }
+  };
+
+  addRange(1, 5);
+  addRange(currentPage - 2, currentPage + 2);
+  addRange(totalPages - 4, totalPages);
+
+  const sortedPages = [...pages].sort((left, right) => left - right);
+  const items: PageNavigationItem[] = [];
+
+  sortedPages.forEach((page, index) => {
+    const previousPage = sortedPages[index - 1];
+    if (previousPage !== undefined && page - previousPage > 1) {
+      items.push({
+        type: "ellipsis",
+        key: `ellipsis-${previousPage}-${page}`,
+      });
+    }
+    items.push({ type: "page", value: page });
+  });
+
+  return items;
+};
+
 const Pagination = ({
   pagination,
   onPageChange,
@@ -54,7 +97,7 @@ const Pagination = ({
     if (e.key === "Enter") handleJump();
   };
 
-  const allPages = Array.from({ length: safeTotal }, (_, i) => i + 1);
+  const navigationItems = getPageNavigationItems(safeTotal, page);
 
   const renderNavigationControls = () => (
     <div className="flex items-center justify-end gap-1.5 flex-wrap">
@@ -80,17 +123,28 @@ const Pagination = ({
         <ChevronLeft size={15} />
       </button>
 
-      {allPages.map((n) => (
+      {navigationItems.map((item) => item.type === "ellipsis" ? (
+        <span
+          key={item.key}
+          aria-hidden="true"
+          className="flex h-8 min-w-6 items-center justify-center px-0.5 text-sm text-gray-400"
+        >
+          …
+        </span>
+      ) : (
         <button
-          key={n}
-          onClick={() => onPageChange(n)}
+          key={item.value}
+          type="button"
+          onClick={() => onPageChange(item.value)}
+          aria-current={item.value === page ? "page" : undefined}
+          aria-label={`Ir a la página ${item.value}`}
           className={`min-w-[32px] h-8 px-1 rounded-md text-sm font-medium border transition-colors ${
-            n === page
+            item.value === page
               ? "bg-primary-dark text-white border-primary shadow-sm"
               : "border-gray-200 text-gray-600 hover:bg-gray-50"
           }`}
         >
-          {n}
+          {item.value}
         </button>
       ))}
 

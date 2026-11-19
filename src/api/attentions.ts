@@ -5,6 +5,7 @@ import type {
   Area,
   AdmissionProcess,
   AttentionCreationOrigin,
+  AttentionFilterOption,
   AttentionRegistrationState,
   AttentionListItem,
   ConsultationTopic,
@@ -110,6 +111,20 @@ export const attentionsApi = {
     };
   },
 
+  listFilterOptions: async (): Promise<AttentionFilterOption[]> => {
+    const { data, error } = await supabase.rpc("list_attention_filter_options");
+    if (error?.code === "PGRST202") {
+      throw new Error("Los filtros por medio y mesa no estan instalados. Ejecuta el SQL 27 en Supabase.");
+    }
+    if (error) throw new Error(getErrorMessage(error));
+    return (data || []).map((row) => ({
+      type: row.option_type as AttentionFilterOption["type"],
+      id: row.id,
+      name: row.name,
+      isActive: row.is_active,
+    }));
+  },
+
   list: async (
     page: number,
     limit: number,
@@ -118,8 +133,10 @@ export const attentionsApi = {
     referralStatus?: string,
     areaId?: string,
     admissionProcessId?: string,
+    serviceChannelId?: string,
+    workstationId?: string,
   ): Promise<PaginatedResponse<AttentionListItem>> => {
-    const { data, error } = await supabase.rpc("list_customer_attentions_v3", {
+    const { data, error } = await supabase.rpc("list_customer_attentions_v4", {
       p_page: page,
       p_limit: limit,
       p_search: search.trim(),
@@ -127,9 +144,11 @@ export const attentionsApi = {
       p_referral_status: referralStatus || null,
       p_area_id: areaId || null,
       p_admission_process_id: admissionProcessId || null,
+      p_service_channel_id: serviceChannelId || null,
+      p_workstation_id: workstationId || null,
     });
     if (error?.code === "PGRST202") {
-      throw new Error("El filtro de procesos no está instalado. Ejecuta el SQL 13 en Supabase.");
+      throw new Error("Los filtros del listado no están instalados. Ejecuta el SQL 27 en Supabase.");
     }
     if (error) throw new Error(getErrorMessage(error));
     const rows = data || [];
@@ -142,7 +161,10 @@ export const attentionsApi = {
         requesterType: row.requester_type as AttentionListItem["requesterType"],
         clientDni: row.client_dni,
         clientName: row.client_name,
+        serviceChannelId: row.service_channel_id,
         serviceChannelName: row.service_channel_name,
+        workstationId: row.workstation_id,
+        workstationName: row.workstation_name,
         createdByName: row.created_by_name,
         createdAt: row.created_at,
         surveyStatus: row.survey_status as AttentionListItem["surveyStatus"],
